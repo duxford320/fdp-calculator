@@ -356,6 +356,7 @@
 
       <!-- BASE FDP TABLE -->
       <div class="modal-sub-head">Base FDP Limits — Eurowings OM-A (acclimatised crew, no extensions)</div>
+      <div class="ext-note" style="margin-bottom:8px">Source: Eurowings Europe Ltd. OM-A · Revision 104 · 15 OCT 2025</div>
       <div style="overflow-x:auto">
         <table class="modal-table">
           <thead>
@@ -374,6 +375,7 @@
 
       <!-- EXTENSION TABLE -->
       <div class="modal-sub-head">Operator Extension — Max FDP with Extension (EW OM-A exact values)</div>
+      <div class="ext-note" style="margin-bottom:8px">Source: Eurowings Europe Ltd. OM-A · Revision 104 · 15 OCT 2025</div>
       <div style="overflow-x:auto">
         <table class="modal-table">
           <thead>
@@ -522,6 +524,7 @@
   <!-- FDP REFERENCE TABLE (live, current ruleset) -->
   <div class="card mb-6">
     <div class="section-head">FDP Limit Reference — <span id="tableRulesetLabel" class="val-amber">EASA</span></div>
+    <div id="tableRevNote" style="display:none;font-size:0.68rem;color:var(--text-dim);margin-bottom:8px">Eurowings Europe Ltd. OM-A · Revision 104 · 15 OCT 2025</div>
     <div class="overflow-x-auto">
       <table class="w-full text-xs">
         <thead id="fdpTableHead"></thead>
@@ -851,6 +854,7 @@ function renderFDPTable() {
   const airline = getAirline();
   const data    = FDP_DATA[airline];
   document.getElementById('tableRulesetLabel').textContent = data.label;
+  document.getElementById('tableRevNote').style.display = (airline === 'EUROWINGS') ? 'block' : 'none';
 
   // Header
   let headHtml = '<tr style="color:var(--text-dim);text-align:left">';
