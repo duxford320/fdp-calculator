@@ -1,0 +1,926 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0a0a0a" />
+  <title>FDP Calculator</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+
+    /* ── NIGHT MODE (default) ── */
+    :root {
+      --primary:      #f59e0b;
+      --primary-dim:  #92400e;
+      --green:        #10b981;
+      --red:          #ef4444;
+      --bg:           #0a0a0a;
+      --surface:      #111111;
+      --surface2:     #1a1a1a;
+      --surface3:     #0d0d0d;
+      --border:       #2a2a2a;
+      --border2:      #222222;
+      --text-main:    #f59e0b;
+      --text-label:   #d97706;
+      --text-dim:     #6b7280;
+      --text-result-border: #1f1f1f;
+      --section-border: #1a1a1a;
+      --clock-color:  #10b981;
+      --clock-shadow: rgba(16,185,129,0.4);
+      --sector-result-border: #1a2a1a;
+      --tooltip-bg:   #222;
+      --tooltip-color:#d4d4d4;
+      --tooltip-border:#333;
+      --theme-btn-icon: '☀';
+    }
+
+    /* ── DAY MODE ── */
+    body.day {
+      --primary:      #1d4ed8;
+      --primary-dim:  #93c5fd;
+      --green:        #059669;
+      --red:          #dc2626;
+      --bg:           #f0f4f8;
+      --surface:      #ffffff;
+      --surface2:     #e2e8f0;
+      --surface3:     #f8fafc;
+      --border:       #cbd5e1;
+      --border2:      #e2e8f0;
+      --text-main:    #1e293b;
+      --text-label:   #1d4ed8;
+      --text-dim:     #64748b;
+      --text-result-border: #e2e8f0;
+      --section-border: #e2e8f0;
+      --clock-color:  #1d4ed8;
+      --clock-shadow: rgba(29,78,216,0.15);
+      --sector-result-border: #bfdbfe;
+      --tooltip-bg:   #1e293b;
+      --tooltip-color:#f1f5f9;
+      --tooltip-border:#475569;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      background: var(--bg);
+      color: var(--text-main);
+      font-family: 'Share Tech Mono', monospace;
+      min-height: 100vh;
+      transition: background 0.25s, color 0.25s;
+    }
+    .mono { font-family: 'Share Tech Mono', monospace; }
+
+    input[type="text"], input[type="number"] {
+      background: var(--surface3);
+      border: 1px solid var(--border);
+      color: var(--text-main);
+      font-family: 'Share Tech Mono', monospace;
+      padding: 6px 10px;
+      border-radius: 4px;
+      outline: none;
+      transition: border-color 0.2s, background 0.25s, color 0.25s;
+    }
+    input[type="text"]:focus, input[type="number"]:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 2px rgba(29,78,216,0.12);
+    }
+    input[type="radio"]    { accent-color: var(--primary); }
+    input[type="checkbox"] { accent-color: var(--primary); width:18px; height:18px; cursor:pointer; }
+
+    /* Theme toggle button */
+    #themeBtn {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text-main);
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 1.1rem;
+      width: 38px; height: 38px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    #themeBtn:hover { border-color: var(--primary); background: var(--surface); }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      transition: background 0.25s, border-color 0.25s;
+    }
+    .label { color: var(--text-label); font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase; }
+    .val-green { color: var(--green); }
+    .val-amber { color: var(--primary); }
+    .val-red   { color: var(--red); }
+    .val-dim   { color: var(--text-dim); }
+
+    .result-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--text-result-border);
+    }
+    .result-row:last-child { border-bottom: none; }
+
+    .clock-display {
+      font-size: 2.8rem;
+      letter-spacing: 0.15em;
+      color: var(--clock-color);
+      text-shadow: 0 0 20px var(--clock-shadow);
+      transition: color 0.25s;
+    }
+
+    .sector-row {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 10px;
+      align-items: center;
+      padding: 8px;
+      background: var(--surface3);
+      border: 1px solid var(--border2);
+      border-radius: 6px;
+      margin-bottom: 8px;
+      transition: background 0.25s;
+    }
+    .sector-result {
+      background: var(--surface3);
+      border: 1px solid var(--sector-result-border);
+      border-radius: 6px;
+      padding: 10px 14px;
+      margin-bottom: 6px;
+      transition: background 0.25s;
+    }
+
+    .radio-group label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 14px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.15s;
+      font-size: 0.9rem;
+    }
+    .radio-group label:has(input:checked) {
+      border-color: var(--primary);
+      background: rgba(29,78,216,0.06);
+    }
+    body:not(.day) .radio-group label:has(input:checked) {
+      background: rgba(245,158,11,0.08);
+    }
+
+    .toggle-ext {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .toggle-ext:has(input:checked) {
+      border-color: var(--green);
+      background: rgba(5,150,105,0.07);
+    }
+
+    .warn-banner {
+      background: rgba(220,38,38,0.08);
+      border: 1px solid rgba(220,38,38,0.3);
+      border-radius: 6px;
+      padding: 10px 14px;
+      color: var(--red);
+      font-size: 0.85rem;
+    }
+
+    .section-head {
+      font-size: 0.7rem;
+      letter-spacing: 0.18em;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      border-bottom: 1px solid var(--section-border);
+      padding-bottom: 6px;
+      margin-bottom: 12px;
+    }
+
+    .tooltip { position: relative; cursor: help; }
+    .tooltip::after {
+      content: attr(data-tip);
+      position: absolute;
+      bottom: 120%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--tooltip-bg);
+      color: var(--tooltip-color);
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 0.72rem;
+      white-space: nowrap;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.15s;
+      border: 1px solid var(--tooltip-border);
+      z-index: 10;
+    }
+    .tooltip:hover::after { opacity: 1; }
+
+    /* Day-mode table header tweak */
+    body.day #fdpTable thead tr { color: var(--text-dim) !important; }
+  </style>
+</head>
+<body class="p-4 md:p-6">
+
+<!-- ═══════════════════════════════ HEADER ═══════════════════════════════ -->
+<div class="max-w-2xl mx-auto">
+  <div class="card mb-4">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+      <div style="flex:1;text-align:center">
+        <div class="label mb-1">UNIVERSAL COORDINATED TIME</div>
+        <div class="clock-display mono" id="clock">--:--:-- Z</div>
+        <div class="text-xs mt-1 val-dim" id="dateDisplay">---</div>
+      </div>
+      <button id="themeBtn" onclick="toggleTheme()" title="Toggle Day / Night mode">🌙</button>
+    </div>
+  </div>
+
+<!-- ═══════════════════════════ AIRLINE SELECTOR ════════════════════════ -->
+  <div class="card mb-4">
+    <div class="section-head">Ruleset Selection</div>
+    <div class="radio-group flex gap-3 flex-wrap">
+      <label>
+        <input type="radio" name="airline" value="EASA" checked onchange="onAirlineChange()" />
+        <span>EASA (ORO.FTL.205)</span>
+      </label>
+      <label>
+        <input type="radio" name="airline" value="EUROWINGS" onchange="onAirlineChange()" />
+        <span>EUROWINGS</span>
+      </label>
+    </div>
+    <div class="mt-2 text-xs val-dim" id="rulesetNote">Standard EASA ORO.FTL.205 limits active.</div>
+  </div>
+
+<!-- ═══════════════════════════ MAIN INPUTS ═════════════════════════════ -->
+  <div class="card mb-4">
+    <div class="section-head">Duty Parameters</div>
+    <div class="grid grid-cols-2 gap-4 mb-4">
+      <div>
+        <div class="label mb-1 tooltip" data-tip="HH:MM in UTC / Zulu">Report Time (UTC)</div>
+        <input type="text" id="reportTime" placeholder="e.g. 06:00" maxlength="5"
+          class="w-full" oninput="formatTimeInput(this); calculate()" />
+      </div>
+      <div>
+        <div class="label mb-1">Number of Sectors</div>
+        <input type="number" id="numSectors" min="1" max="6" value="4"
+          class="w-full" oninput="onSectorCountChange()" />
+      </div>
+    </div>
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <div class="label mb-1 tooltip" data-tip="Duty after last on-blocks (mins)">Post-Flight Duty (mins)</div>
+        <input type="number" id="postFlight" min="0" max="120" value="30"
+          class="w-full" oninput="calculate()" />
+      </div>
+      <div>
+        <div class="label mb-1 tooltip" data-tip="Ground time between sectors (mins)">Turnaround Time (mins)</div>
+        <input type="number" id="turnaround" min="0" max="120" value="35"
+          class="w-full" oninput="calculate()" />
+      </div>
+    </div>
+  </div>
+
+<!-- ══════════════════════════ SECTOR BLOCK TIMES ═══════════════════════ -->
+  <div class="card mb-4">
+    <div class="section-head">Sector Block Times (Scheduled Flight Duration)</div>
+    <div id="sectorInputs"></div>
+    <div class="text-xs val-dim mt-1">Enter scheduled block time per sector (HH:MM e.g. 1:45)</div>
+  </div>
+
+<!-- ═══════════════════════════ EXTENSIONS ══════════════════════════════ -->
+  <div class="card mb-4">
+    <div class="section-head">Extensions</div>
+    <!-- Extension prohibition notice (shown when applicable) -->
+    <div id="extProhibitNotice" style="display:none" class="warn-banner mb-3"></div>
+    <div class="flex flex-col gap-3">
+      <label class="toggle-ext" id="opExtLabel">
+        <input type="checkbox" id="opExt" onchange="calculate()" />
+        <div>
+          <div class="text-sm">Operator Extension <span class="val-green">+1:00 h</span></div>
+          <div class="text-xs val-dim">ORO.FTL.205(d) — pre-planned, notified before report</div>
+        </div>
+      </label>
+      <label class="toggle-ext">
+        <input type="checkbox" id="cdExt" onchange="calculate()" />
+        <div>
+          <div class="text-sm">Commander's Discretion <span class="val-green">+2:00 h</span></div>
+          <div class="text-xs val-dim">ORO.FTL.205(e) — unforeseen circumstances only</div>
+        </div>
+      </label>
+    </div>
+  </div>
+
+<!-- ═══════════════════════════ RESULTS ═════════════════════════════════ -->
+  <div class="card mb-4" id="resultsCard">
+    <div class="section-head">Results</div>
+    <div id="resultsContent">
+      <div class="val-dim text-sm">Enter report time to calculate.</div>
+    </div>
+  </div>
+
+<!-- ═════════════════════════ LATEST TAKEOFFS ═══════════════════════════ -->
+  <div class="card mb-4" id="takeoffCard" style="display:none">
+    <div class="section-head">Latest Takeoff Times (UTC)</div>
+    <div id="takeoffContent"></div>
+  </div>
+
+<!-- ════════════════════ FDP TABLE REFERENCE ════════════════════════════ -->
+  <div class="card mb-6">
+    <div class="section-head">FDP Limit Reference — Active Ruleset: <span id="tableRulesetLabel" class="val-amber">EASA</span></div>
+    <div class="overflow-x-auto">
+      <table class="w-full text-xs" id="fdpTable">
+        <thead id="fdpTableHead">
+          <!-- rendered dynamically based on ruleset -->
+        </thead>
+        <tbody id="fdpTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="text-xs val-dim text-center mb-4">
+    FDP Calculator v1.0 · For reference only · Always verify with official documentation<br/>
+    Works offline after first load · PWA enabled
+  </div>
+</div>
+
+<!-- ═══════════════════════════════ SCRIPT ══════════════════════════════ -->
+<script>
+// ═══════════════════════════════════════════════════════════════════
+//  FDP DATA
+//
+//  EASA format (3 sector-groups):
+//    [startHHMM, endHHMM, [1-2sec, 3-4sec, 5-6sec]]  — minutes
+//
+//  EUROWINGS format (5 sector-columns, matching OM-A):
+//    [startHHMM, endHHMM, [1-2sec, 3sec, 4sec, 5sec, 6sec]]  — minutes
+//
+//  All FDP limits stored in MINUTES for arithmetic precision.
+// ═══════════════════════════════════════════════════════════════════
+const FDP_DATA = {
+
+  EASA: {
+    label: 'EASA ORO.FTL.205',
+    note: 'Standard EASA ORO.FTL.205 limits active.',
+    // 3-column format: [1-2 sectors, 3-4 sectors, 5-6 sectors]
+    table: [
+      ['00:00', '04:59', [ 11*60,      10*60+30,  10*60    ]],
+      ['05:00', '05:59', [ 12*60,      11*60+30,  11*60    ]],
+      ['06:00', '13:29', [ 13*60,      12*60,     11*60+30 ]],
+      ['13:30', '13:59', [ 12*60+30,   11*60+30,  11*60    ]],
+      ['14:00', '14:29', [ 12*60,      11*60,     10*60+30 ]],
+      ['14:30', '14:59', [ 11*60+30,   10*60+30,  10*60    ]],
+      ['15:00', '15:29', [ 11*60,      10*60,     9*60+30  ]],
+      ['15:30', '15:59', [ 10*60+30,   9*60+30,   9*60     ]],
+      ['16:00', '16:29', [ 10*60,      9*60,      8*60+30  ]],
+      ['16:30', '16:59', [ 9*60+30,    8*60+30,   8*60     ]],
+      ['17:00', '21:59', [ 9*60,       9*60,      9*60     ]],
+      ['22:00', '22:59', [ 10*60,      9*60+30,   9*60     ]],
+      ['23:00', '23:59', [ 11*60,      10*60,     9*60+30  ]],
+    ]
+  },
+
+  EUROWINGS: {
+    label: 'Eurowings (OM-A)',
+    note: 'Eurowings OM-A limits active. 5-column format: 1-2 / 3 / 4 / 5 / 6 sectors.',
+    // 5-column format: [1-2 sec, 3 sec, 4 sec, 5 sec, 6 sec]
+    // ════════════════════════════════════════════════════════════════
+    // MORNING TRANSITION (05:00-05:59): split into 15-min bands per OM-A
+    // EDIT the four rows below with your exact datasheet values.
+    // Example value format: 12*60+30 = 12h30m = 750 minutes
+    // ════════════════════════════════════════════════════════════════
+    table: [
+      ['00:00', '04:59', [ 11*60,      10*60+30,  10*60+30,  10*60,     10*60    ]],
+      /* ── MORNING TRANSITION — EDIT EUROWINGS VALUES HERE ↓ ── */
+      ['05:00', '05:14', [ 12*60,      11*60+30,  11*60+30,  11*60,     11*60    ]],  /* EDIT: 0500-0514 */
+      ['05:15', '05:29', [ 12*60,      11*60+30,  11*60+30,  11*60,     11*60    ]],  /* EDIT: 0515-0529 */
+      ['05:30', '05:44', [ 12*60,      11*60+30,  11*60+30,  11*60,     11*60    ]],  /* EDIT: 0530-0544 */
+      ['05:45', '05:59', [ 12*60,      11*60+30,  11*60+30,  11*60,     11*60    ]],  /* EDIT: 0545-0559 */
+      /* ── END OF MORNING TRANSITION ── */
+      ['06:00', '13:29', [ 13*60,      12*60+30,  12*60,     11*60+30,  11*60+30 ]],
+      ['13:30', '13:59', [ 12*60+30,   12*60,     11*60+30,  11*60,     11*60    ]],
+      ['14:00', '14:29', [ 12*60,      11*60+30,  11*60,     10*60+30,  10*60+30 ]],
+      ['14:30', '14:59', [ 11*60+30,   11*60,     10*60+30,  10*60,     10*60    ]],
+      ['15:00', '15:29', [ 11*60,      10*60+30,  10*60,     9*60+30,   9*60+30  ]],
+      ['15:30', '15:59', [ 10*60+30,   10*60,     9*60+30,   9*60,      9*60     ]],
+      ['16:00', '16:29', [ 10*60,      9*60+30,   9*60,      8*60+30,   8*60+30  ]],
+      ['16:30', '16:59', [ 9*60+30,    9*60,      8*60+30,   8*60,      8*60     ]],
+      ['17:00', '21:59', [ 9*60,       9*60,      9*60,      9*60,      9*60     ]],
+      ['22:00', '22:59', [ 10*60,      9*60+30,   9*60+30,   9*60,      9*60     ]],
+      ['23:00', '23:59', [ 11*60,      10*60,     10*60,     9*60+30,   9*60+30  ]],
+    ],
+
+    // ═══════════════════════════════════════════════════════════════
+    //  EW OPERATOR EXTENSION PROHIBITION TABLE
+    //  Report times where the +1h extension is NOT permitted.
+    //  Source: EW OM-A. Window: 19:00–05:59 and 06:00–06:14.
+    //  Also hard-prohibited for 6 sectors (enforced in JS below).
+    // ═══════════════════════════════════════════════════════════════
+    extProhibited: [
+      // [startHHMM, endHHMM] — extension forbidden if report falls here
+      ['00:00', '05:59'],   // night/early-morning window
+      ['06:00', '06:14'],   // early morning edge
+      ['19:00', '23:59'],   // evening/night window
+    ]
+  }
+
+};
+
+// ═══════════════════════════════════════════════════════════════════
+//  UTILITIES
+// ═══════════════════════════════════════════════════════════════════
+
+function parseHHMM(str) {
+  if (!str) return null;
+  str = str.trim();
+  const m = str.match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return null;
+  const h = parseInt(m[1], 10), mn = parseInt(m[2], 10);
+  if (h > 23 || mn > 59) return null;
+  return h * 60 + mn;
+}
+
+function minsToHHMM(mins) {
+  if (mins === null || isNaN(mins)) return '--:--';
+  const wrapped = ((mins % 1440) + 1440) % 1440;
+  const h = Math.floor(wrapped / 60);
+  const m = wrapped % 60;
+  return String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0');
+}
+
+function formatDuration(mins) {
+  if (mins === null || isNaN(mins)) return '--:--';
+  const sign = mins < 0 ? '-' : '';
+  const abs = Math.abs(mins);
+  const h = Math.floor(abs / 60);
+  const m = abs % 60;
+  return sign + String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0');
+}
+
+function hhmmToMins(hhmm) {
+  const parts = hhmm.split(':').map(Number);
+  return parts[0] * 60 + parts[1];
+}
+
+function dayLabel(mins) {
+  if (mins >= 1440) return ' <span style="color:#6b7280;font-size:0.75em">(+1 day)</span>';
+  if (mins < 0)    return ' <span style="color:#6b7280;font-size:0.75em">(-1 day)</span>';
+  return '';
+}
+
+function formatTimeInput(input) {
+  let v = input.value.replace(/[^0-9:]/g, '');
+  if (v.length === 4 && !v.includes(':')) {
+    v = v.slice(0,2) + ':' + v.slice(2);
+  }
+  input.value = v;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  UTC CLOCK
+// ═══════════════════════════════════════════════════════════════════
+const DAYS   = ['SUN','MON','TUE','WED','THU','FRI','SAT'];
+const MONTHS = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+
+function updateClock() {
+  const now = new Date();
+  const h = String(now.getUTCHours()).padStart(2,'0');
+  const m = String(now.getUTCMinutes()).padStart(2,'0');
+  const s = String(now.getUTCSeconds()).padStart(2,'0');
+  document.getElementById('clock').textContent = h + ':' + m + ':' + s + ' Z';
+  const day  = DAYS[now.getUTCDay()];
+  const date = String(now.getUTCDate()).padStart(2,'0');
+  const mon  = MONTHS[now.getUTCMonth()];
+  const yr   = now.getUTCFullYear();
+  document.getElementById('dateDisplay').textContent = day + ' ' + date + ' ' + mon + ' ' + yr + ' UTC';
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ═══════════════════════════════════════════════════════════════════
+//  SECTOR INPUT MANAGEMENT
+// ═══════════════════════════════════════════════════════════════════
+
+function onSectorCountChange() {
+  renderSectorInputs();
+  calculate();
+}
+
+function renderSectorInputs() {
+  const n = Math.min(6, Math.max(1, parseInt(document.getElementById('numSectors').value) || 1));
+  const container = document.getElementById('sectorInputs');
+  const existing = [];
+  container.querySelectorAll('input').forEach(inp => existing.push(inp.value));
+  container.innerHTML = '';
+  for (let i = 0; i < n; i++) {
+    const div = document.createElement('div');
+    div.className = 'sector-row';
+    div.innerHTML =
+      '<span class="label" style="min-width:24px">S' + (i+1) + '</span>' +
+      '<input type="text" placeholder="HH:MM" maxlength="5" class="w-full" ' +
+        'oninput="formatTimeInput(this); calculate()" ' +
+        'value="' + (existing[i] || '') + '" id="sector' + i + '" />' +
+      '<span class="val-dim text-xs">block</span>';
+    container.appendChild(div);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  FDP LOOKUP
+// ═══════════════════════════════════════════════════════════════════
+
+function getAirline() {
+  return document.querySelector('input[name="airline"]:checked').value;
+}
+
+function getFDPLimit(reportMins, numSectors) {
+  const airline = getAirline();
+  const data = FDP_DATA[airline];
+
+  if (airline === 'EUROWINGS') {
+    // 5-column format: indices 0=1-2sec, 1=3sec, 2=4sec, 3=5sec, 4=6sec
+    const colIdx = numSectors <= 2 ? 0
+                 : numSectors === 3 ? 1
+                 : numSectors === 4 ? 2
+                 : numSectors === 5 ? 3
+                 : 4; // 6 sectors
+    for (let i = 0; i < data.table.length; i++) {
+      const row = data.table[i];
+      const start = hhmmToMins(row[0]);
+      const end   = hhmmToMins(row[1]);
+      if (reportMins >= start && reportMins <= end) {
+        return row[2][colIdx];
+      }
+    }
+  } else {
+    // EASA 3-column format: 0=1-2sec, 1=3-4sec, 2=5-6sec
+    const colIdx = numSectors <= 2 ? 0 : numSectors <= 4 ? 1 : 2;
+    for (let i = 0; i < data.table.length; i++) {
+      const row = data.table[i];
+      const start = hhmmToMins(row[0]);
+      const end   = hhmmToMins(row[1]);
+      if (reportMins >= start && reportMins <= end) {
+        return row[2][colIdx];
+      }
+    }
+  }
+  return null;
+}
+
+// Check if EW operator extension is prohibited for this report time
+function isEWExtProhibited(reportMins) {
+  const prohibited = FDP_DATA.EUROWINGS.extProhibited;
+  for (let i = 0; i < prohibited.length; i++) {
+    const start = hhmmToMins(prohibited[i][0]);
+    const end   = hhmmToMins(prohibited[i][1]);
+    if (reportMins >= start && reportMins <= end) return true;
+  }
+  return false;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  NIGHT DUTY CHECK
+//  'Night window' = 02:00–05:59 UTC (minutes 120–359)
+//  Triggered if the FDP overlaps this range at all.
+// ═══════════════════════════════════════════════════════════════════
+function isNightDuty(reportMins, fdpEndMins) {
+  const NIGHT_START = 2 * 60;   // 02:00
+  const NIGHT_END   = 5 * 60 + 59; // 05:59
+
+  // Normalise to 0-1439 range for comparison, handle overnight
+  // The duty runs from reportMins to fdpEndMins (may cross midnight)
+  // We check if the window [reportMins, fdpEndMins] overlaps [NIGHT_START, NIGHT_END]
+  // For overnight duties we check both same-day and +1440 offset.
+  function overlaps(dutyStart, dutyEnd, winStart, winEnd) {
+    return dutyStart <= winEnd && dutyEnd >= winStart;
+  }
+  const r = reportMins % 1440;
+  const e = fdpEndMins; // may be > 1440
+
+  // Check within same calendar day block
+  if (overlaps(r, e, NIGHT_START, NIGHT_END)) return true;
+  // Check with night window shifted +1440 (next day)
+  if (overlaps(r, e, NIGHT_START + 1440, NIGHT_END + 1440)) return true;
+  return false;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  FDP REFERENCE TABLE RENDER
+// ═══════════════════════════════════════════════════════════════════
+
+function renderFDPTable() {
+  const airline = getAirline();
+  document.getElementById('tableRulesetLabel').textContent = FDP_DATA[airline].label;
+
+  // Render appropriate column headers
+  const thead = document.getElementById('fdpTableHead');
+  if (airline === 'EUROWINGS') {
+    thead.innerHTML =
+      '<tr class="text-left" style="color:var(--text-dim)">' +
+        '<th class="pb-2 pr-3">Report (UTC)</th>' +
+        '<th class="pb-2 pr-2">1–2</th>' +
+        '<th class="pb-2 pr-2">3</th>' +
+        '<th class="pb-2 pr-2">4</th>' +
+        '<th class="pb-2 pr-2">5</th>' +
+        '<th class="pb-2">6</th>' +
+      '</tr>';
+  } else {
+    thead.innerHTML =
+      '<tr class="text-left" style="color:var(--text-dim)">' +
+        '<th class="pb-2 pr-3">Report (UTC)</th>' +
+        '<th class="pb-2 pr-3">1–2</th>' +
+        '<th class="pb-2 pr-3">3–4</th>' +
+        '<th class="pb-2 pr-3">5–6</th>' +
+      '</tr>';
+  }
+
+  const tbody = document.getElementById('fdpTableBody');
+  tbody.innerHTML = '';
+  FDP_DATA[airline].table.forEach(function(row) {
+    const tr = document.createElement('tr');
+    let cells = '<td class="pr-3 py-1 val-dim">' + row[0] + '–' + row[1] + '</td>';
+    for (let c = 0; c < row[2].length; c++) {
+      cells += '<td class="pr-2 py-1">' + formatDuration(row[2][c]) + '</td>';
+    }
+    tr.innerHTML = cells;
+    tbody.appendChild(tr);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  AIRLINE SWITCH
+// ═══════════════════════════════════════════════════════════════════
+
+function onAirlineChange() {
+  const airline = getAirline();
+  document.getElementById('rulesetNote').textContent = FDP_DATA[airline].note;
+  renderFDPTable();
+  calculate();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  MAIN CALCULATION ENGINE
+// ═══════════════════════════════════════════════════════════════════
+
+function calculate() {
+  const reportStr  = document.getElementById('reportTime').value.trim();
+  const numSectors = Math.min(6, Math.max(1, parseInt(document.getElementById('numSectors').value) || 1));
+  const postFlight = parseInt(document.getElementById('postFlight').value) || 30;
+  const turnaround = parseInt(document.getElementById('turnaround').value) || 35;
+  const airline    = getAirline();
+
+  const opExtCb    = document.getElementById('opExt');
+  const cdExtCb    = document.getElementById('cdExt');
+  const prohibitEl = document.getElementById('extProhibitNotice');
+  const opExtLabel = document.getElementById('opExtLabel');
+
+  const resultsContent = document.getElementById('resultsContent');
+  const takeoffCard    = document.getElementById('takeoffCard');
+  const takeoffContent = document.getElementById('takeoffContent');
+
+  // ── Validate report time ────────────────────────────────────────
+  const reportMins = parseHHMM(reportStr);
+  if (reportMins === null) {
+    resultsContent.innerHTML = '<div class="val-dim text-sm">Enter a valid report time (HH:MM UTC).</div>';
+    takeoffCard.style.display = 'none';
+    prohibitEl.style.display = 'none';
+    return;
+  }
+
+  // ── 6-sector extension lock (EW rule) ───────────────────────────
+  const sixSectorLock = (airline === 'EUROWINGS' && numSectors === 6);
+
+  // ── EW extension prohibition by report time ─────────────────────
+  const ewTimeLock = (airline === 'EUROWINGS' && isEWExtProhibited(reportMins));
+
+  // Apply lock state to Operator Extension
+  if (sixSectorLock) {
+    opExtCb.checked  = false;
+    opExtCb.disabled = true;
+    opExtLabel.style.opacity = '0.45';
+    opExtLabel.style.cursor  = 'not-allowed';
+    prohibitEl.style.display = 'block';
+    prohibitEl.textContent   = '⛔ Extensions Prohibited for 6 Sectors (EW OM-A)';
+  } else if (ewTimeLock) {
+    opExtCb.checked  = false;
+    opExtCb.disabled = true;
+    opExtLabel.style.opacity = '0.45';
+    opExtLabel.style.cursor  = 'not-allowed';
+    prohibitEl.style.display = 'block';
+    prohibitEl.textContent   = '⛔ Operator Extension Prohibited — Report time ' + minsToHHMM(reportMins) + ' falls in restricted window (EW OM-A: 19:00–06:14)';
+  } else {
+    opExtCb.disabled = false;
+    opExtLabel.style.opacity = '1';
+    opExtLabel.style.cursor  = 'pointer';
+    prohibitEl.style.display = 'none';
+  }
+
+  const opExt = opExtCb.checked ? 60  : 0;
+  const cdExt = cdExtCb.checked ? 120 : 0;
+
+  // ── Look up base FDP limit ──────────────────────────────────────
+  const baseFDP = getFDPLimit(reportMins, numSectors);
+  if (baseFDP === null) {
+    resultsContent.innerHTML = '<div class="val-red text-sm">Could not find FDP limit for this report time.</div>';
+    takeoffCard.style.display = 'none';
+    return;
+  }
+
+  const extTotal           = opExt + cdExt;
+  const maxFDP             = baseFDP + extTotal;
+  const fdpEndMins         = reportMins + maxFDP;
+  const latestOnBlocksMins = fdpEndMins - postFlight;
+
+  // ── Night Duty check ────────────────────────────────────────────
+  const nightDuty = isNightDuty(reportMins, fdpEndMins);
+
+  // ── Gather sector block times ───────────────────────────────────
+  const sectorTimes = [];
+  for (let i = 0; i < numSectors; i++) {
+    const inp = document.getElementById('sector' + i);
+    const val = inp ? inp.value.trim() : '';
+    sectorTimes.push(parseHHMM(val));
+  }
+  const allSectorsEntered = sectorTimes.every(function(t) { return t !== null && t > 0; });
+
+  // ── Build results HTML ──────────────────────────────────────────
+  let html = '';
+
+  // Night Duty banner
+  if (nightDuty) {
+    html += '<div style="background:rgba(239,68,68,0.13);border:2px solid #ef4444;border-radius:8px;padding:12px 14px;margin-bottom:12px;text-align:center">' +
+      '<span style="color:#ef4444;font-size:1.1rem;font-weight:bold;letter-spacing:0.08em">⚠ NIGHT DUTY</span>' +
+      '<div style="color:#fca5a5;font-size:0.78rem;margin-top:4px">This FDP encroaches on the 02:00–05:59 UTC night window.<br>Reduced crew alertness — apply extra diligence.</div>' +
+      '</div>';
+  }
+
+  // Both extensions warning
+  if (opExt && cdExt) {
+    html += '<div class="warn-banner mb-3">CAUTION: Operator Extension AND Commander\'s Discretion active simultaneously. Verify regulatory compliance.</div>';
+  }
+
+  html += '<div class="result-row"><span class="label">Report Time</span><span class="val-amber text-lg">' + minsToHHMM(reportMins) + ' UTC</span></div>';
+  html += '<div class="result-row"><span class="label">Ruleset</span><span class="val-dim">' + FDP_DATA[airline].label + '</span></div>';
+  html += '<div class="result-row"><span class="label">Sectors</span><span class="val-amber">' + numSectors + '</span></div>';
+  html += '<div class="result-row"><span class="label">Base FDP Limit</span><span class="val-amber">' + formatDuration(baseFDP) + '</span></div>';
+
+  if (extTotal > 0) {
+    html += '<div class="result-row"><span class="label">Extensions</span><span class="val-green">+' + formatDuration(extTotal) +
+      (opExt ? ' Op' : '') + (cdExt ? (opExt ? ' + CMD Disc.' : ' CMD Disc.') : '') + '</span></div>';
+    html += '<div class="result-row"><span class="label">Max FDP (with ext.)</span><span class="val-green text-xl">' + formatDuration(maxFDP) + '</span></div>';
+  } else {
+    html += '<div class="result-row"><span class="label">Max FDP</span><span class="val-green text-xl">' + formatDuration(maxFDP) + '</span></div>';
+  }
+
+  // FDP End — highlighted red if night duty
+  const fdpEndStyle = nightDuty ? 'color:#ef4444;font-size:1.1rem' : 'color:var(--green);font-size:1.1rem';
+  html += '<div class="result-row"><span class="label">FDP End (Latest On-Blocks + Post-Flt)</span>' +
+    '<span style="' + fdpEndStyle + '">' + minsToHHMM(fdpEndMins) + ' UTC' + dayLabel(fdpEndMins) +
+    (nightDuty ? ' ⚠' : '') + '</span></div>';
+  html += '<div class="result-row"><span class="label">Latest On-Blocks (Last Sector)</span><span class="val-green" style="font-size:1.1rem">' +
+    minsToHHMM(latestOnBlocksMins) + ' UTC' + dayLabel(latestOnBlocksMins) + '</span></div>';
+  html += '<div class="result-row"><span class="label">Post-Flight Duty</span><span class="val-dim">' + postFlight + ' min</span></div>';
+  html += '<div class="result-row"><span class="label">Turnaround Between Sectors</span><span class="val-dim">' + turnaround + ' min</span></div>';
+
+  resultsContent.innerHTML = html;
+
+  // ── Sector Latest Takeoff Calculation ──────────────────────────
+  if (!allSectorsEntered) {
+    takeoffCard.style.display = 'none';
+    resultsContent.innerHTML += '<div class="text-xs val-dim mt-3 pt-3" style="border-top:1px solid var(--text-result-border)">Enter all sector block times above to see Latest Takeoff Times.</div>';
+    return;
+  }
+
+  // Work backwards from latestOnBlocksMins
+  //   Last sector:   latestTakeoff[N] = latestOnBlocks - blockTime[N]
+  //   Prior sectors: latestTakeoff[i] = latestTakeoff[i+1] - turnaround - blockTime[i]
+  const latestTakeoffs = new Array(numSectors);
+  const latestOnBlocks = new Array(numSectors);
+
+  latestOnBlocks[numSectors - 1] = latestOnBlocksMins;
+  latestTakeoffs[numSectors - 1] = latestOnBlocksMins - sectorTimes[numSectors - 1];
+
+  for (let i = numSectors - 2; i >= 0; i--) {
+    latestOnBlocks[i] = latestTakeoffs[i + 1] - turnaround;
+    latestTakeoffs[i] = latestOnBlocks[i]     - sectorTimes[i];
+  }
+
+  takeoffCard.style.display = 'block';
+  let tHtml = '';
+
+  for (let i = 0; i < numSectors; i++) {
+    const to = latestTakeoffs[i];
+    const ob = latestOnBlocks[i];
+    tHtml +=
+      '<div class="sector-result">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">' +
+          '<span class="label">Sector ' + (i+1) + '</span>' +
+          '<span class="text-xs val-dim">Block time: ' + formatDuration(sectorTimes[i]) + '</span>' +
+        '</div>' +
+        '<div style="display:flex;justify-content:space-between">' +
+          '<div>' +
+            '<div class="text-xs val-dim">Latest Takeoff</div>' +
+            '<div class="val-green" style="font-size:1.5rem">' + minsToHHMM(to) + ' UTC' + dayLabel(to) + '</div>' +
+          '</div>' +
+          '<div style="text-align:right">' +
+            '<div class="text-xs val-dim">Latest On-Blocks</div>' +
+            '<div class="val-amber" style="font-size:1.2rem">' + minsToHHMM(ob) + ' UTC' + dayLabel(ob) + '</div>' +
+          '</div>' +
+        '</div>' +
+        (i < numSectors - 1 ? '<div class="text-xs val-dim" style="margin-top:6px">&#x2193; Turnaround: ' + turnaround + ' min</div>' : '') +
+      '</div>';
+  }
+
+  takeoffContent.innerHTML = tHtml;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  THEME TOGGLE (Night / Day)
+// ═══════════════════════════════════════════════════════════════════
+
+function applyTheme(mode) {
+  const body = document.body;
+  const btn  = document.getElementById('themeBtn');
+  if (mode === 'day') {
+    body.classList.add('day');
+    btn.textContent = '🌙';
+    btn.title = 'Switch to Night mode';
+  } else {
+    body.classList.remove('day');
+    btn.textContent = '☀️';
+    btn.title = 'Switch to Day mode';
+  }
+  try { localStorage.setItem('fdp-theme', mode); } catch(e) {}
+}
+
+function toggleTheme() {
+  const isDay = document.body.classList.contains('day');
+  applyTheme(isDay ? 'night' : 'day');
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  INITIALISE
+// ═══════════════════════════════════════════════════════════════════
+
+// Restore saved theme preference
+(function() {
+  try {
+    const saved = localStorage.getItem('fdp-theme');
+    applyTheme(saved === 'day' ? 'day' : 'night');
+  } catch(e) {
+    applyTheme('night');
+  }
+})();
+
+renderSectorInputs();
+renderFDPTable();
+calculate();
+
+</script>
+
+<!-- ═══════════════════════════ SERVICE WORKER ══════════════════════════ -->
+<script>
+// Inline Service Worker for offline PWA capability
+if ('serviceWorker' in navigator) {
+  const SW = `
+const CACHE_NAME = 'fdp-calc-v1';
+self.addEventListener('install', function(e) {
+  self.skipWaiting();
+});
+self.addEventListener('activate', function(e) {
+  self.clients.claim();
+});
+self.addEventListener('fetch', function(e) {
+  e.respondWith(
+    caches.match(e.request).then(function(cached) {
+      if (cached) return cached;
+      return fetch(e.request).then(function(response) {
+        var clone = response.clone();
+        caches.open(CACHE_NAME).then(function(cache) { cache.put(e.request, clone); });
+        return response;
+      });
+    })
+  );
+});
+  `;
+  try {
+    const blob = new Blob([SW], { type: 'application/javascript' });
+    const swUrl = URL.createObjectURL(blob);
+    navigator.serviceWorker.register(swUrl).catch(function() {});
+  } catch(e) {}
+}
+</script>
+
+</body>
+</html>
