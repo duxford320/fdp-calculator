@@ -25,14 +25,16 @@
       --text-label:   #d97706;
       --text-dim:     #6b7280;
       --text-result-border: #1f1f1f;
-      --section-border: #1a1a1a;
+      --section-border:     #1a1a1a;
       --clock-color:  #10b981;
       --clock-shadow: rgba(16,185,129,0.4);
       --sector-result-border: #1a2a1a;
       --tooltip-bg:   #222;
       --tooltip-color:#d4d4d4;
       --tooltip-border:#333;
-      --theme-btn-icon: '☀';
+      --modal-bg:     #0d0d0d;
+      --modal-header: #111;
+      --table-stripe: #161616;
     }
 
     /* ── DAY MODE ── */
@@ -51,13 +53,16 @@
       --text-label:   #1d4ed8;
       --text-dim:     #64748b;
       --text-result-border: #e2e8f0;
-      --section-border: #e2e8f0;
+      --section-border:     #e2e8f0;
       --clock-color:  #1d4ed8;
       --clock-shadow: rgba(29,78,216,0.15);
       --sector-result-border: #bfdbfe;
       --tooltip-bg:   #1e293b;
       --tooltip-color:#f1f5f9;
       --tooltip-border:#475569;
+      --modal-bg:     #f8fafc;
+      --modal-header: #ffffff;
+      --table-stripe: #f1f5f9;
     }
 
     * { box-sizing: border-box; }
@@ -82,12 +87,11 @@
     }
     input[type="text"]:focus, input[type="number"]:focus {
       border-color: var(--primary);
-      box-shadow: 0 0 0 2px rgba(29,78,216,0.12);
+      box-shadow: 0 0 0 2px rgba(29,78,216,0.1);
     }
     input[type="radio"]    { accent-color: var(--primary); }
     input[type="checkbox"] { accent-color: var(--primary); width:18px; height:18px; cursor:pointer; }
 
-    /* Theme toggle button */
     #themeBtn {
       background: var(--surface2);
       border: 1px solid var(--border);
@@ -101,7 +105,7 @@
       display: flex; align-items: center; justify-content: center;
       flex-shrink: 0;
     }
-    #themeBtn:hover { border-color: var(--primary); background: var(--surface); }
+    #themeBtn:hover { border-color: var(--primary); }
 
     .card {
       background: var(--surface);
@@ -143,7 +147,6 @@
       border: 1px solid var(--border2);
       border-radius: 6px;
       margin-bottom: 8px;
-      transition: background 0.25s;
     }
     .sector-result {
       background: var(--surface3);
@@ -151,7 +154,6 @@
       border-radius: 6px;
       padding: 10px 14px;
       margin-bottom: 6px;
-      transition: background 0.25s;
     }
 
     .radio-group label {
@@ -189,12 +191,20 @@
     }
 
     .warn-banner {
-      background: rgba(220,38,38,0.08);
-      border: 1px solid rgba(220,38,38,0.3);
+      background: rgba(239,68,68,0.1);
+      border: 1px solid rgba(239,68,68,0.3);
       border-radius: 6px;
       padding: 10px 14px;
       color: var(--red);
       font-size: 0.85rem;
+    }
+    .info-banner {
+      background: rgba(245,158,11,0.08);
+      border: 1px solid rgba(245,158,11,0.3);
+      border-radius: 6px;
+      padding: 8px 12px;
+      color: var(--primary);
+      font-size: 0.8rem;
     }
 
     .section-head {
@@ -211,8 +221,7 @@
     .tooltip::after {
       content: attr(data-tip);
       position: absolute;
-      bottom: 120%;
-      left: 50%;
+      bottom: 120%; left: 50%;
       transform: translateX(-50%);
       background: var(--tooltip-bg);
       color: var(--tooltip-color);
@@ -228,14 +237,196 @@
     }
     .tooltip:hover::after { opacity: 1; }
 
-    /* Day-mode table header tweak */
+    /* Reference table button */
+    .ref-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 0.75rem;
+      padding: 5px 10px;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: all 0.15s;
+      letter-spacing: 0.05em;
+    }
+    .ref-btn:hover { border-color: var(--primary); color: var(--primary); }
+
+    /* ── MODAL ── */
+    #modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.75);
+      z-index: 1000;
+      padding: 16px;
+      overflow-y: auto;
+    }
+    #modal.open { display: flex; align-items: flex-start; justify-content: center; }
+    .modal-box {
+      background: var(--modal-bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      width: 100%;
+      max-width: 700px;
+      margin: auto;
+      overflow: hidden;
+    }
+    .modal-header {
+      background: var(--modal-header);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 18px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .modal-body { padding: 18px; }
+    .modal-close {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+      font-size: 1.1rem;
+      width: 30px; height: 30px;
+      border-radius: 4px;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.15s;
+    }
+    .modal-close:hover { border-color: var(--red); color: var(--red); }
+
+    /* Modal tables */
+    .modal-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.78rem;
+      margin-bottom: 8px;
+    }
+    .modal-table th {
+      background: var(--surface2);
+      color: var(--text-label);
+      padding: 6px 8px;
+      text-align: center;
+      border: 1px solid var(--border);
+      font-size: 0.7rem;
+      letter-spacing: 0.08em;
+    }
+    .modal-table th:first-child { text-align: left; }
+    .modal-table td {
+      padding: 5px 8px;
+      border: 1px solid var(--border2);
+      text-align: center;
+      color: var(--text-main);
+    }
+    .modal-table td:first-child { text-align: left; color: var(--text-dim); }
+    .modal-table tr:nth-child(even) td { background: var(--table-stripe); }
+    .modal-table .highlight td { color: var(--green); font-weight: bold; }
+    .modal-table .prohibited td:not(:first-child) { color: var(--red); }
+    .modal-sub-head {
+      font-size: 0.7rem;
+      letter-spacing: 0.15em;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      margin: 16px 0 8px;
+      padding-bottom: 4px;
+      border-bottom: 1px solid var(--section-border);
+    }
+    .ext-note {
+      font-size: 0.72rem;
+      color: var(--text-dim);
+      margin-top: 6px;
+      line-height: 1.5;
+    }
+
     body.day #fdpTable thead tr { color: var(--text-dim) !important; }
   </style>
 </head>
 <body class="p-4 md:p-6">
 
-<!-- ═══════════════════════════════ HEADER ═══════════════════════════════ -->
+<!-- ═══════════════════ MODAL — OM-A Reference Tables ═══════════════════ -->
+<div id="modal" onclick="if(event.target===this)closeModal()">
+  <div class="modal-box">
+    <div class="modal-header">
+      <span class="label" style="font-size:0.8rem">EW OM-A Reference Tables</span>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+
+      <!-- BASE FDP TABLE -->
+      <div class="modal-sub-head">Base FDP Limits — Eurowings OM-A (minutes)</div>
+      <div style="overflow-x:auto">
+        <table class="modal-table">
+          <thead>
+            <tr>
+              <th>Report Time (UTC)</th>
+              <th>1–2 sec</th>
+              <th>3 sec</th>
+              <th>4 sec</th>
+              <th>5 sec</th>
+              <th>6 sec</th>
+            </tr>
+          </thead>
+          <tbody id="modalBaseBody"></tbody>
+        </table>
+      </div>
+
+      <!-- EXTENSION TABLE -->
+      <div class="modal-sub-head">Operator Extension (+1:00h) — Permitted Report Windows</div>
+      <div style="overflow-x:auto">
+        <table class="modal-table">
+          <thead>
+            <tr>
+              <th>Report Time (UTC)</th>
+              <th>Extension</th>
+              <th>Note</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="prohibited">
+              <td>00:00 – 05:59</td>
+              <td>PROHIBITED</td>
+              <td style="text-align:left;color:var(--red)">Night/early morning window</td>
+            </tr>
+            <tr class="prohibited">
+              <td>06:00 – 06:14</td>
+              <td>PROHIBITED</td>
+              <td style="text-align:left;color:var(--red)">Early transition edge</td>
+            </tr>
+            <tr>
+              <td>06:15 – 18:59</td>
+              <td style="color:var(--green)">+1:00 h</td>
+              <td style="text-align:left;color:var(--text-dim)">Permitted (pre-planned)</td>
+            </tr>
+            <tr class="prohibited">
+              <td>19:00 – 23:59</td>
+              <td>PROHIBITED</td>
+              <td style="text-align:left;color:var(--red)">Evening/night window</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="ext-note">
+        ⚠ Extensions are additionally prohibited when 6 sectors are planned.<br>
+        Commander's Discretion (+2h) is governed separately by ORO.FTL.205(e) — unforeseen circumstances only.
+      </div>
+
+      <!-- 6-SECTOR NOTE -->
+      <div class="modal-sub-head">6-Sector Rule</div>
+      <div class="info-banner">
+        When 6 sectors are planned, the Operator Extension (+1:00h) is <strong>strictly prohibited</strong> per EW OM-A,
+        regardless of report time. Commander's Discretion may still apply per ORO.FTL.205(e).
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════ MAIN UI ═══════════════════════════════ -->
 <div class="max-w-2xl mx-auto">
+
+  <!-- CLOCK -->
   <div class="card mb-4">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
       <div style="flex:1;text-align:center">
@@ -247,9 +438,21 @@
     </div>
   </div>
 
-<!-- ═══════════════════════════ AIRLINE SELECTOR ════════════════════════ -->
+  <!-- AIRLINE / RULESET -->
   <div class="card mb-4">
-    <div class="section-head">Ruleset Selection</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <div class="section-head" style="margin-bottom:0;border:none">Ruleset Selection</div>
+      <button class="ref-btn" onclick="openModal()" id="refBtn" style="display:none">
+        <!-- inline SVG grid icon -->
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="1" y="1" width="4" height="4" rx="0.5" stroke="currentColor" stroke-width="1.2"/>
+          <rect x="9" y="1" width="4" height="4" rx="0.5" stroke="currentColor" stroke-width="1.2"/>
+          <rect x="1" y="9" width="4" height="4" rx="0.5" stroke="currentColor" stroke-width="1.2"/>
+          <rect x="9" y="9" width="4" height="4" rx="0.5" stroke="currentColor" stroke-width="1.2"/>
+        </svg>
+        OM-A Tables
+      </button>
+    </div>
     <div class="radio-group flex gap-3 flex-wrap">
       <label>
         <input type="radio" name="airline" value="EASA" checked onchange="onAirlineChange()" />
@@ -263,7 +466,7 @@
     <div class="mt-2 text-xs val-dim" id="rulesetNote">Standard EASA ORO.FTL.205 limits active.</div>
   </div>
 
-<!-- ═══════════════════════════ MAIN INPUTS ═════════════════════════════ -->
+  <!-- DUTY PARAMETERS -->
   <div class="card mb-4">
     <div class="section-head">Duty Parameters</div>
     <div class="grid grid-cols-2 gap-4 mb-4">
@@ -292,17 +495,16 @@
     </div>
   </div>
 
-<!-- ══════════════════════════ SECTOR BLOCK TIMES ═══════════════════════ -->
+  <!-- SECTOR BLOCK TIMES -->
   <div class="card mb-4">
     <div class="section-head">Sector Block Times (Scheduled Flight Duration)</div>
     <div id="sectorInputs"></div>
-    <div class="text-xs val-dim mt-1">Enter scheduled block time per sector (HH:MM e.g. 1:45)</div>
+    <div class="text-xs val-dim mt-1">Enter scheduled block time per sector (HH:MM — e.g. 1:45)</div>
   </div>
 
-<!-- ═══════════════════════════ EXTENSIONS ══════════════════════════════ -->
+  <!-- EXTENSIONS -->
   <div class="card mb-4">
     <div class="section-head">Extensions</div>
-    <!-- Extension prohibition notice (shown when applicable) -->
     <div id="extProhibitNotice" style="display:none" class="warn-banner mb-3"></div>
     <div class="flex flex-col gap-3">
       <label class="toggle-ext" id="opExtLabel">
@@ -322,35 +524,33 @@
     </div>
   </div>
 
-<!-- ═══════════════════════════ RESULTS ═════════════════════════════════ -->
-  <div class="card mb-4" id="resultsCard">
+  <!-- RESULTS -->
+  <div class="card mb-4">
     <div class="section-head">Results</div>
     <div id="resultsContent">
       <div class="val-dim text-sm">Enter report time to calculate.</div>
     </div>
   </div>
 
-<!-- ═════════════════════════ LATEST TAKEOFFS ═══════════════════════════ -->
+  <!-- LATEST TAKEOFFS -->
   <div class="card mb-4" id="takeoffCard" style="display:none">
     <div class="section-head">Latest Takeoff Times (UTC)</div>
     <div id="takeoffContent"></div>
   </div>
 
-<!-- ════════════════════ FDP TABLE REFERENCE ════════════════════════════ -->
+  <!-- FDP REFERENCE TABLE (live, current ruleset) -->
   <div class="card mb-6">
-    <div class="section-head">FDP Limit Reference — Active Ruleset: <span id="tableRulesetLabel" class="val-amber">EASA</span></div>
+    <div class="section-head">FDP Limit Reference — <span id="tableRulesetLabel" class="val-amber">EASA</span></div>
     <div class="overflow-x-auto">
-      <table class="w-full text-xs" id="fdpTable">
-        <thead id="fdpTableHead">
-          <!-- rendered dynamically based on ruleset -->
-        </thead>
+      <table class="w-full text-xs">
+        <thead id="fdpTableHead"></thead>
         <tbody id="fdpTableBody"></tbody>
       </table>
     </div>
   </div>
 
   <div class="text-xs val-dim text-center mb-4">
-    FDP Calculator v1.0 · For reference only · Always verify with official documentation<br/>
+    FDP Calculator v2.0 · For reference only · Always verify with official documentation<br/>
     Works offline after first load · PWA enabled
   </div>
 </div>
@@ -360,20 +560,16 @@
 // ═══════════════════════════════════════════════════════════════════
 //  FDP DATA
 //
-//  EASA format (3 sector-groups):
-//    [startHHMM, endHHMM, [1-2sec, 3-4sec, 5-6sec]]  — minutes
-//
-//  EUROWINGS format (5 sector-columns, matching OM-A):
-//    [startHHMM, endHHMM, [1-2sec, 3sec, 4sec, 5sec, 6sec]]  — minutes
-//
-//  All FDP limits stored in MINUTES for arithmetic precision.
+//  EASA: 3-column format  → [1-2sec, 3-4sec, 5-6sec]
+//  EW:   5-column format  → [1-2sec, 3sec, 4sec, 5sec, 6sec]
+//  All values in MINUTES.
 // ═══════════════════════════════════════════════════════════════════
 const FDP_DATA = {
 
   EASA: {
     label: 'EASA ORO.FTL.205',
     note: 'Standard EASA ORO.FTL.205 limits active.',
-    // 3-column format: [1-2 sectors, 3-4 sectors, 5-6 sectors]
+    cols: ['1–2', '3–4', '5–6'],
     table: [
       ['00:00', '04:59', [ 11*60,      10*60+30,  10*60    ]],
       ['05:00', '05:59', [ 12*60,      11*60+30,  11*60    ]],
@@ -388,26 +584,30 @@ const FDP_DATA = {
       ['17:00', '21:59', [ 9*60,       9*60,      9*60     ]],
       ['22:00', '22:59', [ 10*60,      9*60+30,   9*60     ]],
       ['23:00', '23:59', [ 11*60,      10*60,     9*60+30  ]],
-    ]
+    ],
+    // EASA: no time-based extension prohibition
+    extProhibited: []
   },
 
   EUROWINGS: {
-    label: 'Eurowings (OM-A)',
-    note: 'Eurowings OM-A limits active. 5-column format: 1-2 / 3 / 4 / 5 / 6 sectors.',
-    // 5-column format: [1-2 sec, 3 sec, 4 sec, 5 sec, 6 sec]
-    // ════════════════════════════════════════════════════════════════
-    // MORNING TRANSITION (05:00-05:59): split into 15-min bands per OM-A
-    // EDIT the four rows below with your exact datasheet values.
-    // Example value format: 12*60+30 = 12h30m = 750 minutes
-    // ════════════════════════════════════════════════════════════════
+    label: 'Eurowings OM-A',
+    note: 'Eurowings OM-A limits active. 5-column: 1-2 / 3 / 4 / 5 / 6 sectors.',
+    cols: ['1–2', '3', '4', '5', '6'],
+    // ─────────────────────────────────────────────────────────────
+    //  BASE FDP TABLE  [startHHMM, endHHMM, [1-2, 3, 4, 5, 6]]
+    //
+    //  05:00-05:59 split into 15-min bands per EW OM-A.
+    //  ⚠ EDIT THE FOUR MORNING ROWS below with your OM-A values.
+    //  Example: 12*60+30 = 12h30m = 750 minutes
+    // ─────────────────────────────────────────────────────────────
     table: [
       ['00:00', '04:59', [ 11*60,      10*60+30,  10*60+30,  10*60,     10*60    ]],
-      /* ── MORNING TRANSITION — EDIT EUROWINGS VALUES HERE ↓ ── */
-      ['05:00', '05:14', [ 12*60,      11*60+30,  11*60+30,  11*60,     11*60    ]],  /* EDIT: 0500-0514 */
-      ['05:15', '05:29', [ 12*60,      11*60+30,  11*60+30,  11*60,     11*60    ]],  /* EDIT: 0515-0529 */
-      ['05:30', '05:44', [ 12*60,      11*60+30,  11*60+30,  11*60,     11*60    ]],  /* EDIT: 0530-0544 */
-      ['05:45', '05:59', [ 12*60,      11*60+30,  11*60+30,  11*60,     11*60    ]],  /* EDIT: 0545-0559 */
-      /* ── END OF MORNING TRANSITION ── */
+      /* ── MORNING TRANSITION — EDIT WITH YOUR OM-A VALUES ↓ ── */
+      ['05:00', '05:14', [ 12*60,      11*60+30,  11*60+30,  11*60,     11*60    ]],  /* EDIT 0500-0514 */
+      ['05:15', '05:29', [ 12*60,      11*60+30,  11*60+30,  11*60,     11*60    ]],  /* EDIT 0515-0529 */
+      ['05:30', '05:44', [ 12*60,      11*60+30,  11*60+30,  11*60,     11*60    ]],  /* EDIT 0530-0544 */
+      ['05:45', '05:59', [ 12*60,      11*60+30,  11*60+30,  11*60,     11*60    ]],  /* EDIT 0545-0559 */
+      /* ── END MORNING TRANSITION ── */
       ['06:00', '13:29', [ 13*60,      12*60+30,  12*60,     11*60+30,  11*60+30 ]],
       ['13:30', '13:59', [ 12*60+30,   12*60,     11*60+30,  11*60,     11*60    ]],
       ['14:00', '14:29', [ 12*60,      11*60+30,  11*60,     10*60+30,  10*60+30 ]],
@@ -421,20 +621,17 @@ const FDP_DATA = {
       ['23:00', '23:59', [ 11*60,      10*60,     10*60,     9*60+30,   9*60+30  ]],
     ],
 
-    // ═══════════════════════════════════════════════════════════════
-    //  EW OPERATOR EXTENSION PROHIBITION TABLE
-    //  Report times where the +1h extension is NOT permitted.
-    //  Source: EW OM-A. Window: 19:00–05:59 and 06:00–06:14.
-    //  Also hard-prohibited for 6 sectors (enforced in JS below).
-    // ═══════════════════════════════════════════════════════════════
+    // ─────────────────────────────────────────────────────────────
+    //  EW OPERATOR EXTENSION PROHIBITION WINDOWS
+    //  Extension is PROHIBITED if report time falls in any of these.
+    //  Also prohibited for 6 sectors (enforced in JS).
+    // ─────────────────────────────────────────────────────────────
     extProhibited: [
-      // [startHHMM, endHHMM] — extension forbidden if report falls here
-      ['00:00', '05:59'],   // night/early-morning window
-      ['06:00', '06:14'],   // early morning edge
-      ['19:00', '23:59'],   // evening/night window
+      ['00:00', '05:59'],
+      ['06:00', '06:14'],
+      ['19:00', '23:59'],
     ]
   }
-
 };
 
 // ═══════════════════════════════════════════════════════════════════
@@ -462,28 +659,26 @@ function minsToHHMM(mins) {
 function formatDuration(mins) {
   if (mins === null || isNaN(mins)) return '--:--';
   const sign = mins < 0 ? '-' : '';
-  const abs = Math.abs(mins);
+  const abs  = Math.abs(mins);
   const h = Math.floor(abs / 60);
   const m = abs % 60;
   return sign + String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0');
 }
 
 function hhmmToMins(hhmm) {
-  const parts = hhmm.split(':').map(Number);
-  return parts[0] * 60 + parts[1];
+  const p = hhmm.split(':').map(Number);
+  return p[0] * 60 + p[1];
 }
 
 function dayLabel(mins) {
-  if (mins >= 1440) return ' <span style="color:#6b7280;font-size:0.75em">(+1 day)</span>';
-  if (mins < 0)    return ' <span style="color:#6b7280;font-size:0.75em">(-1 day)</span>';
+  if (mins >= 1440) return ' <span style="color:var(--text-dim);font-size:0.75em">(+1 day)</span>';
+  if (mins < 0)     return ' <span style="color:var(--text-dim);font-size:0.75em">(-1 day)</span>';
   return '';
 }
 
 function formatTimeInput(input) {
   let v = input.value.replace(/[^0-9:]/g, '');
-  if (v.length === 4 && !v.includes(':')) {
-    v = v.slice(0,2) + ':' + v.slice(2);
-  }
+  if (v.length === 4 && !v.includes(':')) v = v.slice(0,2) + ':' + v.slice(2);
   input.value = v;
 }
 
@@ -494,28 +689,62 @@ const DAYS   = ['SUN','MON','TUE','WED','THU','FRI','SAT'];
 const MONTHS = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
 
 function updateClock() {
-  const now = new Date();
-  const h = String(now.getUTCHours()).padStart(2,'0');
-  const m = String(now.getUTCMinutes()).padStart(2,'0');
-  const s = String(now.getUTCSeconds()).padStart(2,'0');
+  const n = new Date();
+  const h = String(n.getUTCHours()).padStart(2,'0');
+  const m = String(n.getUTCMinutes()).padStart(2,'0');
+  const s = String(n.getUTCSeconds()).padStart(2,'0');
   document.getElementById('clock').textContent = h + ':' + m + ':' + s + ' Z';
-  const day  = DAYS[now.getUTCDay()];
-  const date = String(now.getUTCDate()).padStart(2,'0');
-  const mon  = MONTHS[now.getUTCMonth()];
-  const yr   = now.getUTCFullYear();
-  document.getElementById('dateDisplay').textContent = day + ' ' + date + ' ' + mon + ' ' + yr + ' UTC';
+  document.getElementById('dateDisplay').textContent =
+    DAYS[n.getUTCDay()] + ' ' + String(n.getUTCDate()).padStart(2,'0') + ' ' +
+    MONTHS[n.getUTCMonth()] + ' ' + n.getUTCFullYear() + ' UTC';
 }
 setInterval(updateClock, 1000);
 updateClock();
 
 // ═══════════════════════════════════════════════════════════════════
-//  SECTOR INPUT MANAGEMENT
+//  THEME
 // ═══════════════════════════════════════════════════════════════════
-
-function onSectorCountChange() {
-  renderSectorInputs();
-  calculate();
+function applyTheme(mode) {
+  const btn = document.getElementById('themeBtn');
+  if (mode === 'day') {
+    document.body.classList.add('day');
+    btn.textContent = '🌙';
+    btn.title = 'Switch to Night mode';
+  } else {
+    document.body.classList.remove('day');
+    btn.textContent = '☀️';
+    btn.title = 'Switch to Day mode';
+  }
+  try { localStorage.setItem('fdp-theme', mode); } catch(e) {}
 }
+function toggleTheme() {
+  applyTheme(document.body.classList.contains('day') ? 'night' : 'day');
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  MODAL
+// ═══════════════════════════════════════════════════════════════════
+function openModal()  { document.getElementById('modal').classList.add('open'); }
+function closeModal() { document.getElementById('modal').classList.remove('open'); }
+
+function buildModalBaseTable() {
+  const tbody = document.getElementById('modalBaseBody');
+  tbody.innerHTML = '';
+  FDP_DATA.EUROWINGS.table.forEach(function(row) {
+    const tr = document.createElement('tr');
+    let cells = '<td>' + row[0] + '–' + row[1] + '</td>';
+    for (let c = 0; c < row[2].length; c++) {
+      cells += '<td>' + formatDuration(row[2][c]) + '</td>';
+    }
+    tr.innerHTML = cells;
+    tbody.appendChild(tr);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  SECTOR INPUTS
+// ═══════════════════════════════════════════════════════════════════
+function onSectorCountChange() { renderSectorInputs(); calculate(); }
 
 function renderSectorInputs() {
   const n = Math.min(6, Math.max(1, parseInt(document.getElementById('numSectors').value) || 1));
@@ -539,120 +768,75 @@ function renderSectorInputs() {
 // ═══════════════════════════════════════════════════════════════════
 //  FDP LOOKUP
 // ═══════════════════════════════════════════════════════════════════
-
 function getAirline() {
   return document.querySelector('input[name="airline"]:checked').value;
 }
 
 function getFDPLimit(reportMins, numSectors) {
   const airline = getAirline();
-  const data = FDP_DATA[airline];
+  const data    = FDP_DATA[airline];
+  let colIdx;
 
   if (airline === 'EUROWINGS') {
-    // 5-column format: indices 0=1-2sec, 1=3sec, 2=4sec, 3=5sec, 4=6sec
-    const colIdx = numSectors <= 2 ? 0
-                 : numSectors === 3 ? 1
-                 : numSectors === 4 ? 2
-                 : numSectors === 5 ? 3
-                 : 4; // 6 sectors
-    for (let i = 0; i < data.table.length; i++) {
-      const row = data.table[i];
-      const start = hhmmToMins(row[0]);
-      const end   = hhmmToMins(row[1]);
-      if (reportMins >= start && reportMins <= end) {
-        return row[2][colIdx];
-      }
-    }
+    // 5 columns: 0=1-2sec, 1=3sec, 2=4sec, 3=5sec, 4=6sec
+    colIdx = numSectors <= 2 ? 0 : numSectors === 3 ? 1 : numSectors === 4 ? 2 : numSectors === 5 ? 3 : 4;
   } else {
-    // EASA 3-column format: 0=1-2sec, 1=3-4sec, 2=5-6sec
-    const colIdx = numSectors <= 2 ? 0 : numSectors <= 4 ? 1 : 2;
-    for (let i = 0; i < data.table.length; i++) {
-      const row = data.table[i];
-      const start = hhmmToMins(row[0]);
-      const end   = hhmmToMins(row[1]);
-      if (reportMins >= start && reportMins <= end) {
-        return row[2][colIdx];
-      }
-    }
+    // 3 columns: 0=1-2sec, 1=3-4sec, 2=5-6sec
+    colIdx = numSectors <= 2 ? 0 : numSectors <= 4 ? 1 : 2;
+  }
+
+  for (let i = 0; i < data.table.length; i++) {
+    const row   = data.table[i];
+    const start = hhmmToMins(row[0]);
+    const end   = hhmmToMins(row[1]);
+    if (reportMins >= start && reportMins <= end) return row[2][colIdx];
   }
   return null;
 }
 
-// Check if EW operator extension is prohibited for this report time
+// Returns true if EW operator extension is prohibited for this report time
 function isEWExtProhibited(reportMins) {
-  const prohibited = FDP_DATA.EUROWINGS.extProhibited;
-  for (let i = 0; i < prohibited.length; i++) {
-    const start = hhmmToMins(prohibited[i][0]);
-    const end   = hhmmToMins(prohibited[i][1]);
-    if (reportMins >= start && reportMins <= end) return true;
+  const windows = FDP_DATA.EUROWINGS.extProhibited;
+  for (let i = 0; i < windows.length; i++) {
+    if (reportMins >= hhmmToMins(windows[i][0]) && reportMins <= hhmmToMins(windows[i][1])) return true;
   }
   return false;
 }
 
-// ═══════════════════════════════════════════════════════════════════
-//  NIGHT DUTY CHECK
-//  'Night window' = 02:00–05:59 UTC (minutes 120–359)
-//  Triggered if the FDP overlaps this range at all.
-// ═══════════════════════════════════════════════════════════════════
+// Night duty: FDP overlaps 02:00–05:59 UTC
 function isNightDuty(reportMins, fdpEndMins) {
-  const NIGHT_START = 2 * 60;   // 02:00
-  const NIGHT_END   = 5 * 60 + 59; // 05:59
-
-  // Normalise to 0-1439 range for comparison, handle overnight
-  // The duty runs from reportMins to fdpEndMins (may cross midnight)
-  // We check if the window [reportMins, fdpEndMins] overlaps [NIGHT_START, NIGHT_END]
-  // For overnight duties we check both same-day and +1440 offset.
-  function overlaps(dutyStart, dutyEnd, winStart, winEnd) {
-    return dutyStart <= winEnd && dutyEnd >= winStart;
-  }
+  const NS = 2 * 60, NE = 5 * 60 + 59;
+  function overlaps(ds, de, ws, we) { return ds <= we && de >= ws; }
   const r = reportMins % 1440;
-  const e = fdpEndMins; // may be > 1440
-
-  // Check within same calendar day block
-  if (overlaps(r, e, NIGHT_START, NIGHT_END)) return true;
-  // Check with night window shifted +1440 (next day)
-  if (overlaps(r, e, NIGHT_START + 1440, NIGHT_END + 1440)) return true;
+  if (overlaps(r, fdpEndMins, NS, NE))           return true;
+  if (overlaps(r, fdpEndMins, NS+1440, NE+1440)) return true;
   return false;
 }
 
 // ═══════════════════════════════════════════════════════════════════
-//  FDP REFERENCE TABLE RENDER
+//  FDP REFERENCE TABLE (live)
 // ═══════════════════════════════════════════════════════════════════
-
 function renderFDPTable() {
   const airline = getAirline();
-  document.getElementById('tableRulesetLabel').textContent = FDP_DATA[airline].label;
+  const data    = FDP_DATA[airline];
+  document.getElementById('tableRulesetLabel').textContent = data.label;
 
-  // Render appropriate column headers
-  const thead = document.getElementById('fdpTableHead');
-  if (airline === 'EUROWINGS') {
-    thead.innerHTML =
-      '<tr class="text-left" style="color:var(--text-dim)">' +
-        '<th class="pb-2 pr-3">Report (UTC)</th>' +
-        '<th class="pb-2 pr-2">1–2</th>' +
-        '<th class="pb-2 pr-2">3</th>' +
-        '<th class="pb-2 pr-2">4</th>' +
-        '<th class="pb-2 pr-2">5</th>' +
-        '<th class="pb-2">6</th>' +
-      '</tr>';
-  } else {
-    thead.innerHTML =
-      '<tr class="text-left" style="color:var(--text-dim)">' +
-        '<th class="pb-2 pr-3">Report (UTC)</th>' +
-        '<th class="pb-2 pr-3">1–2</th>' +
-        '<th class="pb-2 pr-3">3–4</th>' +
-        '<th class="pb-2 pr-3">5–6</th>' +
-      '</tr>';
-  }
+  // Header
+  let headHtml = '<tr style="color:var(--text-dim);text-align:left">';
+  headHtml += '<th class="pb-2 pr-3" style="font-weight:normal">Report (UTC)</th>';
+  data.cols.forEach(function(c) {
+    headHtml += '<th class="pb-2 pr-2" style="font-weight:normal">' + c + '</th>';
+  });
+  headHtml += '</tr>';
+  document.getElementById('fdpTableHead').innerHTML = headHtml;
 
+  // Rows
   const tbody = document.getElementById('fdpTableBody');
   tbody.innerHTML = '';
-  FDP_DATA[airline].table.forEach(function(row) {
+  data.table.forEach(function(row) {
     const tr = document.createElement('tr');
     let cells = '<td class="pr-3 py-1 val-dim">' + row[0] + '–' + row[1] + '</td>';
-    for (let c = 0; c < row[2].length; c++) {
-      cells += '<td class="pr-2 py-1">' + formatDuration(row[2][c]) + '</td>';
-    }
+    row[2].forEach(function(v) { cells += '<td class="pr-2 py-1">' + formatDuration(v) + '</td>'; });
     tr.innerHTML = cells;
     tbody.appendChild(tr);
   });
@@ -661,10 +845,11 @@ function renderFDPTable() {
 // ═══════════════════════════════════════════════════════════════════
 //  AIRLINE SWITCH
 // ═══════════════════════════════════════════════════════════════════
-
 function onAirlineChange() {
   const airline = getAirline();
   document.getElementById('rulesetNote').textContent = FDP_DATA[airline].note;
+  // Show/hide OM-A reference button
+  document.getElementById('refBtn').style.display = (airline === 'EUROWINGS') ? 'inline-flex' : 'none';
   renderFDPTable();
   calculate();
 }
@@ -672,7 +857,6 @@ function onAirlineChange() {
 // ═══════════════════════════════════════════════════════════════════
 //  MAIN CALCULATION ENGINE
 // ═══════════════════════════════════════════════════════════════════
-
 function calculate() {
   const reportStr  = document.getElementById('reportTime').value.trim();
   const numSectors = Math.min(6, Math.max(1, parseInt(document.getElementById('numSectors').value) || 1));
@@ -694,42 +878,35 @@ function calculate() {
   if (reportMins === null) {
     resultsContent.innerHTML = '<div class="val-dim text-sm">Enter a valid report time (HH:MM UTC).</div>';
     takeoffCard.style.display = 'none';
-    prohibitEl.style.display = 'none';
+    prohibitEl.style.display  = 'none';
     return;
   }
 
-  // ── 6-sector extension lock (EW rule) ───────────────────────────
+  // ── Extension lock logic ────────────────────────────────────────
   const sixSectorLock = (airline === 'EUROWINGS' && numSectors === 6);
+  const ewTimeLock    = (airline === 'EUROWINGS' && isEWExtProhibited(reportMins));
 
-  // ── EW extension prohibition by report time ─────────────────────
-  const ewTimeLock = (airline === 'EUROWINGS' && isEWExtProhibited(reportMins));
-
-  // Apply lock state to Operator Extension
   if (sixSectorLock) {
-    opExtCb.checked  = false;
-    opExtCb.disabled = true;
-    opExtLabel.style.opacity = '0.45';
-    opExtLabel.style.cursor  = 'not-allowed';
+    opExtCb.checked = false; opExtCb.disabled = true;
+    opExtLabel.style.opacity = '0.4'; opExtLabel.style.cursor = 'not-allowed';
     prohibitEl.style.display = 'block';
-    prohibitEl.textContent   = '⛔ Extensions Prohibited for 6 Sectors (EW OM-A)';
+    prohibitEl.textContent   = '⛔  Extensions Prohibited for 6 Sectors (EW OM-A)';
   } else if (ewTimeLock) {
-    opExtCb.checked  = false;
-    opExtCb.disabled = true;
-    opExtLabel.style.opacity = '0.45';
-    opExtLabel.style.cursor  = 'not-allowed';
+    opExtCb.checked = false; opExtCb.disabled = true;
+    opExtLabel.style.opacity = '0.4'; opExtLabel.style.cursor = 'not-allowed';
     prohibitEl.style.display = 'block';
-    prohibitEl.textContent   = '⛔ Operator Extension Prohibited — Report time ' + minsToHHMM(reportMins) + ' falls in restricted window (EW OM-A: 19:00–06:14)';
+    prohibitEl.innerHTML     = '⛔  Operator Extension Prohibited — report ' +
+      minsToHHMM(reportMins) + ' UTC falls in restricted window (EW OM-A: 19:00–06:14)';
   } else {
     opExtCb.disabled = false;
-    opExtLabel.style.opacity = '1';
-    opExtLabel.style.cursor  = 'pointer';
+    opExtLabel.style.opacity = '1'; opExtLabel.style.cursor = 'pointer';
     prohibitEl.style.display = 'none';
   }
 
   const opExt = opExtCb.checked ? 60  : 0;
   const cdExt = cdExtCb.checked ? 120 : 0;
 
-  // ── Look up base FDP limit ──────────────────────────────────────
+  // ── FDP limit lookup ────────────────────────────────────────────
   const baseFDP = getFDPLimit(reportMins, numSectors);
   if (baseFDP === null) {
     resultsContent.innerHTML = '<div class="val-red text-sm">Could not find FDP limit for this report time.</div>';
@@ -742,32 +919,36 @@ function calculate() {
   const fdpEndMins         = reportMins + maxFDP;
   const latestOnBlocksMins = fdpEndMins - postFlight;
 
-  // ── Night Duty check ────────────────────────────────────────────
+  // ── Night Duty ──────────────────────────────────────────────────
   const nightDuty = isNightDuty(reportMins, fdpEndMins);
 
-  // ── Gather sector block times ───────────────────────────────────
+  // ── Sector block times ──────────────────────────────────────────
   const sectorTimes = [];
   for (let i = 0; i < numSectors; i++) {
     const inp = document.getElementById('sector' + i);
-    const val = inp ? inp.value.trim() : '';
-    sectorTimes.push(parseHHMM(val));
+    sectorTimes.push(inp ? parseHHMM(inp.value.trim()) : null);
   }
   const allSectorsEntered = sectorTimes.every(function(t) { return t !== null && t > 0; });
 
-  // ── Build results HTML ──────────────────────────────────────────
+  // ── Build results ───────────────────────────────────────────────
   let html = '';
 
   // Night Duty banner
   if (nightDuty) {
-    html += '<div style="background:rgba(239,68,68,0.13);border:2px solid #ef4444;border-radius:8px;padding:12px 14px;margin-bottom:12px;text-align:center">' +
-      '<span style="color:#ef4444;font-size:1.1rem;font-weight:bold;letter-spacing:0.08em">⚠ NIGHT DUTY</span>' +
-      '<div style="color:#fca5a5;font-size:0.78rem;margin-top:4px">This FDP encroaches on the 02:00–05:59 UTC night window.<br>Reduced crew alertness — apply extra diligence.</div>' +
+    html +=
+      '<div style="background:rgba(239,68,68,0.13);border:2px solid var(--red);border-radius:8px;' +
+      'padding:12px 14px;margin-bottom:12px;text-align:center">' +
+        '<div style="color:var(--red);font-size:1.05rem;letter-spacing:0.08em;font-weight:bold">⚠ NIGHT DUTY</div>' +
+        '<div style="color:#fca5a5;font-size:0.78rem;margin-top:4px">' +
+          'This FDP encroaches the 02:00–05:59 UTC night window.<br>' +
+          'Reduced alertness expected — apply extra diligence.' +
+        '</div>' +
       '</div>';
   }
 
-  // Both extensions warning
+  // Both extensions caution
   if (opExt && cdExt) {
-    html += '<div class="warn-banner mb-3">CAUTION: Operator Extension AND Commander\'s Discretion active simultaneously. Verify regulatory compliance.</div>';
+    html += '<div class="warn-banner mb-3">CAUTION: Operator Extension AND Commander\'s Discretion active. Verify compliance.</div>';
   }
 
   html += '<div class="result-row"><span class="label">Report Time</span><span class="val-amber text-lg">' + minsToHHMM(reportMins) + ' UTC</span></div>';
@@ -778,33 +959,30 @@ function calculate() {
   if (extTotal > 0) {
     html += '<div class="result-row"><span class="label">Extensions</span><span class="val-green">+' + formatDuration(extTotal) +
       (opExt ? ' Op' : '') + (cdExt ? (opExt ? ' + CMD Disc.' : ' CMD Disc.') : '') + '</span></div>';
-    html += '<div class="result-row"><span class="label">Max FDP (with ext.)</span><span class="val-green text-xl">' + formatDuration(maxFDP) + '</span></div>';
+    html += '<div class="result-row"><span class="label">Max FDP (with ext.)</span><span class="val-green" style="font-size:1.2rem">' + formatDuration(maxFDP) + '</span></div>';
   } else {
-    html += '<div class="result-row"><span class="label">Max FDP</span><span class="val-green text-xl">' + formatDuration(maxFDP) + '</span></div>';
+    html += '<div class="result-row"><span class="label">Max FDP</span><span class="val-green" style="font-size:1.2rem">' + formatDuration(maxFDP) + '</span></div>';
   }
 
-  // FDP End — highlighted red if night duty
-  const fdpEndStyle = nightDuty ? 'color:#ef4444;font-size:1.1rem' : 'color:var(--green);font-size:1.1rem';
-  html += '<div class="result-row"><span class="label">FDP End (Latest On-Blocks + Post-Flt)</span>' +
-    '<span style="' + fdpEndStyle + '">' + minsToHHMM(fdpEndMins) + ' UTC' + dayLabel(fdpEndMins) +
+  const fdpEndColor = nightDuty ? 'color:var(--red)' : 'color:var(--green)';
+  html += '<div class="result-row"><span class="label">FDP End (Max)</span>' +
+    '<span style="' + fdpEndColor + ';font-size:1.1rem">' + minsToHHMM(fdpEndMins) + ' UTC' + dayLabel(fdpEndMins) +
     (nightDuty ? ' ⚠' : '') + '</span></div>';
-  html += '<div class="result-row"><span class="label">Latest On-Blocks (Last Sector)</span><span class="val-green" style="font-size:1.1rem">' +
-    minsToHHMM(latestOnBlocksMins) + ' UTC' + dayLabel(latestOnBlocksMins) + '</span></div>';
+  html += '<div class="result-row"><span class="label">Latest On-Blocks (Last Sector)</span>' +
+    '<span class="val-green" style="font-size:1.1rem">' + minsToHHMM(latestOnBlocksMins) + ' UTC' + dayLabel(latestOnBlocksMins) + '</span></div>';
   html += '<div class="result-row"><span class="label">Post-Flight Duty</span><span class="val-dim">' + postFlight + ' min</span></div>';
   html += '<div class="result-row"><span class="label">Turnaround Between Sectors</span><span class="val-dim">' + turnaround + ' min</span></div>';
 
   resultsContent.innerHTML = html;
 
-  // ── Sector Latest Takeoff Calculation ──────────────────────────
+  // ── Latest Takeoff (chain backwards) ───────────────────────────
   if (!allSectorsEntered) {
     takeoffCard.style.display = 'none';
     resultsContent.innerHTML += '<div class="text-xs val-dim mt-3 pt-3" style="border-top:1px solid var(--text-result-border)">Enter all sector block times above to see Latest Takeoff Times.</div>';
     return;
   }
 
-  // Work backwards from latestOnBlocksMins
-  //   Last sector:   latestTakeoff[N] = latestOnBlocks - blockTime[N]
-  //   Prior sectors: latestTakeoff[i] = latestTakeoff[i+1] - turnaround - blockTime[i]
+  // Chain: work backwards from latestOnBlocksMins
   const latestTakeoffs = new Array(numSectors);
   const latestOnBlocks = new Array(numSectors);
 
@@ -826,7 +1004,7 @@ function calculate() {
       '<div class="sector-result">' +
         '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">' +
           '<span class="label">Sector ' + (i+1) + '</span>' +
-          '<span class="text-xs val-dim">Block time: ' + formatDuration(sectorTimes[i]) + '</span>' +
+          '<span class="text-xs val-dim">Block: ' + formatDuration(sectorTimes[i]) + '</span>' +
         '</div>' +
         '<div style="display:flex;justify-content:space-between">' +
           '<div>' +
@@ -838,7 +1016,9 @@ function calculate() {
             '<div class="val-amber" style="font-size:1.2rem">' + minsToHHMM(ob) + ' UTC' + dayLabel(ob) + '</div>' +
           '</div>' +
         '</div>' +
-        (i < numSectors - 1 ? '<div class="text-xs val-dim" style="margin-top:6px">&#x2193; Turnaround: ' + turnaround + ' min</div>' : '') +
+        (i < numSectors - 1
+          ? '<div class="text-xs val-dim" style="margin-top:6px">&#x2193; Turnaround: ' + turnaround + ' min</div>'
+          : '') +
       '</div>';
   }
 
@@ -846,81 +1026,50 @@ function calculate() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-//  THEME TOGGLE (Night / Day)
-// ═══════════════════════════════════════════════════════════════════
-
-function applyTheme(mode) {
-  const body = document.body;
-  const btn  = document.getElementById('themeBtn');
-  if (mode === 'day') {
-    body.classList.add('day');
-    btn.textContent = '🌙';
-    btn.title = 'Switch to Night mode';
-  } else {
-    body.classList.remove('day');
-    btn.textContent = '☀️';
-    btn.title = 'Switch to Day mode';
-  }
-  try { localStorage.setItem('fdp-theme', mode); } catch(e) {}
-}
-
-function toggleTheme() {
-  const isDay = document.body.classList.contains('day');
-  applyTheme(isDay ? 'night' : 'day');
-}
-
-// ═══════════════════════════════════════════════════════════════════
 //  INITIALISE
 // ═══════════════════════════════════════════════════════════════════
-
-// Restore saved theme preference
-(function() {
+(function init() {
+  // Restore theme
   try {
-    const saved = localStorage.getItem('fdp-theme');
-    applyTheme(saved === 'day' ? 'day' : 'night');
-  } catch(e) {
-    applyTheme('night');
-  }
-})();
+    applyTheme(localStorage.getItem('fdp-theme') === 'day' ? 'day' : 'night');
+  } catch(e) { applyTheme('night'); }
 
-renderSectorInputs();
-renderFDPTable();
-calculate();
+  buildModalBaseTable();
+  renderSectorInputs();
+  renderFDPTable();
+  calculate();
+})();
 
 </script>
 
 <!-- ═══════════════════════════ SERVICE WORKER ══════════════════════════ -->
 <script>
-// Inline Service Worker for offline PWA capability
 if ('serviceWorker' in navigator) {
   const SW = `
-const CACHE_NAME = 'fdp-calc-v1';
-self.addEventListener('install', function(e) {
-  self.skipWaiting();
-});
+const CACHE = 'fdp-v2';
+self.addEventListener('install', function(e) { self.skipWaiting(); });
 self.addEventListener('activate', function(e) {
+  e.waitUntil(caches.keys().then(function(keys) {
+    return Promise.all(keys.filter(function(k){ return k !== CACHE; }).map(function(k){ return caches.delete(k); }));
+  }));
   self.clients.claim();
 });
 self.addEventListener('fetch', function(e) {
-  e.respondWith(
-    caches.match(e.request).then(function(cached) {
-      if (cached) return cached;
-      return fetch(e.request).then(function(response) {
-        var clone = response.clone();
-        caches.open(CACHE_NAME).then(function(cache) { cache.put(e.request, clone); });
-        return response;
-      });
-    })
-  );
+  e.respondWith(caches.match(e.request).then(function(cached) {
+    if (cached) return cached;
+    return fetch(e.request).then(function(r) {
+      var c = r.clone();
+      caches.open(CACHE).then(function(cache) { cache.put(e.request, c); });
+      return r;
+    });
+  }));
 });
   `;
   try {
     const blob = new Blob([SW], { type: 'application/javascript' });
-    const swUrl = URL.createObjectURL(blob);
-    navigator.serviceWorker.register(swUrl).catch(function() {});
+    navigator.serviceWorker.register(URL.createObjectURL(blob)).catch(function(){});
   } catch(e) {}
 }
 </script>
-
 </body>
 </html>
