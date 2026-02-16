@@ -482,7 +482,7 @@
   <div class="card mb-4">
     <div class="section-head">Sector Block Times (Scheduled Flight Duration)</div>
     <div id="sectorInputs"></div>
-    <div class="text-xs val-dim mt-1">Enter scheduled block time per sector (HH:MM — e.g. 1:45)</div>
+    <div class="text-xs val-dim mt-1">Block time per sector (HH:MM). Turnaround between each sector is individually adjustable.</div>
   </div>
 
   <!-- EXTENSIONS -->
@@ -776,20 +776,42 @@ function onSectorCountChange() { renderSectorInputs(); calculate(); }
 
 function renderSectorInputs() {
   const n = Math.min(6, Math.max(1, parseInt(document.getElementById('numSectors').value) || 1));
+  const defaultTA = parseInt(document.getElementById('turnaround').value) || 35;
   const container = document.getElementById('sectorInputs');
-  const existing = [];
-  container.querySelectorAll('input').forEach(inp => existing.push(inp.value));
+
+  // Preserve existing block time and turnaround values
+  const existingBlock = [];
+  const existingTA    = [];
+  container.querySelectorAll('input[id^="sector"]').forEach(inp => existingBlock.push(inp.value));
+  container.querySelectorAll('input[id^="ta"]').forEach(inp => existingTA.push(inp.value));
+
   container.innerHTML = '';
+
   for (let i = 0; i < n; i++) {
-    const div = document.createElement('div');
-    div.className = 'sector-row';
-    div.innerHTML =
+    // Sector block time row
+    const sDiv = document.createElement('div');
+    sDiv.className = 'sector-row';
+    sDiv.innerHTML =
       '<span class="label" style="min-width:24px">S' + (i+1) + '</span>' +
       '<input type="text" placeholder="HH:MM" maxlength="5" class="w-full" ' +
         'oninput="formatTimeInput(this); calculate()" ' +
-        'value="' + (existing[i] || '') + '" id="sector' + i + '" />' +
+        'value="' + (existingBlock[i] || '') + '" id="sector' + i + '" />' +
       '<span class="val-dim text-xs">block</span>';
-    container.appendChild(div);
+    container.appendChild(sDiv);
+
+    // Turnaround row — between sectors only (not after last sector)
+    if (i < n - 1) {
+      const taDiv = document.createElement('div');
+      taDiv.style.cssText = 'display:flex;align-items:center;gap:8px;padding:4px 8px 4px 32px;';
+      taDiv.innerHTML =
+        '<span style="color:var(--text-dim);font-size:0.75rem;flex-shrink:0">&#x21B3; Turnaround</span>' +
+        '<input type="number" min="0" max="240" ' +
+          'style="width:70px;font-size:0.8rem;padding:3px 6px;text-align:center" ' +
+          'oninput="calculate()" ' +
+          'value="' + (existingTA[i] || defaultTA) + '" id="ta' + i + '" />' +
+        '<span style="color:var(--text-dim);font-size:0.75rem">min</span>';
+      container.appendChild(taDiv);
+    }
   }
 }
 
@@ -1045,6 +1067,14 @@ function calculate() {
 
   resultsContent.innerHTML = html;
 
+  // ── Read per-sector turnaround values ──────────────────────────
+  // taValues[i] = turnaround between sector i and sector i+1
+  const taValues = [];
+  for (let i = 0; i < numSectors - 1; i++) {
+    const taInp = document.getElementById('ta' + i);
+    taValues.push(taInp ? (parseInt(taInp.value) || turnaround) : turnaround);
+  }
+
   // ── Latest Takeoff (chain backwards) ───────────────────────────
   if (!allSectorsEntered) {
     takeoffCard.style.display = 'none';
@@ -1053,6 +1083,7 @@ function calculate() {
   }
 
   // Chain: work backwards from latestOnBlocksMins
+  // taValues[i] is the turnaround between sector i on-blocks and sector i+1 off-blocks
   const latestTakeoffs = new Array(numSectors);
   const latestOnBlocks = new Array(numSectors);
 
@@ -1060,7 +1091,7 @@ function calculate() {
   latestTakeoffs[numSectors - 1] = latestOnBlocksMins - sectorTimes[numSectors - 1];
 
   for (let i = numSectors - 2; i >= 0; i--) {
-    latestOnBlocks[i] = latestTakeoffs[i + 1] - turnaround;
+    latestOnBlocks[i] = latestTakeoffs[i + 1] - taValues[i];
     latestTakeoffs[i] = latestOnBlocks[i]     - sectorTimes[i];
   }
 
@@ -1087,7 +1118,7 @@ function calculate() {
           '</div>' +
         '</div>' +
         (i < numSectors - 1
-          ? '<div class="text-xs val-dim" style="margin-top:6px">&#x2193; Turnaround: ' + turnaround + ' min</div>'
+          ? '<div class="text-xs val-dim" style="margin-top:6px">&#x21B3; Turnaround to S' + (i+2) + ': ' + taValues[i] + ' min</div>'
           : '') +
       '</div>';
   }
