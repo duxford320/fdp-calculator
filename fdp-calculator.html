@@ -373,42 +373,23 @@
       </div>
 
       <!-- EXTENSION TABLE -->
-      <div class="modal-sub-head">Operator Extension (+1:00h) — Permitted Report Windows</div>
+      <div class="modal-sub-head">Operator Extension — Max FDP with Extension (EW OM-A exact values)</div>
       <div style="overflow-x:auto">
         <table class="modal-table">
           <thead>
             <tr>
-              <th>Report Time (UTC)</th>
-              <th>Extension</th>
-              <th>Note</th>
+              <th>Report (UTC)</th>
+              <th>1–2 sec</th>
+              <th>3 sec</th>
+              <th>4 sec</th>
+              <th>5 sec</th>
             </tr>
           </thead>
-          <tbody>
-            <tr class="prohibited">
-              <td>00:00 – 05:59</td>
-              <td>PROHIBITED</td>
-              <td style="text-align:left;color:var(--red)">Night/early morning window</td>
-            </tr>
-            <tr class="prohibited">
-              <td>06:00 – 06:14</td>
-              <td>PROHIBITED</td>
-              <td style="text-align:left;color:var(--red)">Early transition edge</td>
-            </tr>
-            <tr>
-              <td>06:15 – 18:59</td>
-              <td style="color:var(--green)">+1:00 h</td>
-              <td style="text-align:left;color:var(--text-dim)">Permitted (pre-planned)</td>
-            </tr>
-            <tr class="prohibited">
-              <td>19:00 – 23:59</td>
-              <td>PROHIBITED</td>
-              <td style="text-align:left;color:var(--red)">Evening/night window</td>
-            </tr>
-          </tbody>
+          <tbody id="modalExtBody"></tbody>
         </table>
       </div>
       <div class="ext-note">
-        ⚠ Extensions are additionally prohibited when 6 sectors are planned.<br>
+        Values shown are TOTAL extended FDP (not the increment). 6 sectors: extension always prohibited.<br>
         Commander's Discretion (+2h) is governed separately by ORO.FTL.205(e) — unforeseen circumstances only.
       </div>
 
@@ -621,14 +602,38 @@ const FDP_DATA = {
     ],
 
     // ─────────────────────────────────────────────────────────────
-    //  EW OPERATOR EXTENSION PROHIBITION WINDOWS
-    //  Extension is PROHIBITED if report time falls in any of these.
-    //  Also prohibited for 6 sectors (enforced in JS).
+    //  EW OPERATOR EXTENSION TABLE (direct lookup, NOT base + fixed amount)
+    //  Source: EW OM-A Chapter 7.1 — "Maximum daily FDP with extension"
+    //
+    //  Format: [startHHMM, endHHMM, [1-2sec, 3sec, 4sec, 5sec]]
+    //  null = "not allowed" per OM-A.
+    //  6 sectors: NEVER permitted (not in table — enforced in JS).
+    //  Values represent TOTAL extended FDP in minutes (not the increment).
+    //
+    //  Rows covering 00:00–05:59 and 19:00–23:59 are all null (prohibited).
     // ─────────────────────────────────────────────────────────────
-    extProhibited: [
-      ['00:00', '05:59'],
-      ['06:00', '06:14'],
-      ['19:00', '23:59'],
+    extTable: [
+      // ── Prohibited windows (19:00–06:14) ──
+      ['00:00', '05:59', [ null,         null,        null,        null      ]],
+      ['06:00', '06:14', [ null,         null,        null,        null      ]],
+      // ── Permitted windows ──
+      ['06:15', '06:29', [ 13*60+15,     12*60+45,    12*60+15,    11*60+45  ]],
+      ['06:30', '06:44', [ 13*60+30,     13*60,       12*60+30,    12*60     ]],
+      ['06:45', '06:59', [ 13*60+45,     13*60+15,    12*60+45,    12*60+15  ]],
+      ['07:00', '13:29', [ 14*60,        13*60+30,    13*60,       12*60+30  ]],
+      ['13:30', '13:59', [ 13*60+45,     13*60+15,    12*60+45,    null      ]],
+      ['14:00', '14:29', [ 13*60+30,     13*60,       12*60+30,    null      ]],
+      ['14:30', '14:59', [ 13*60+15,     12*60+45,    12*60+15,    null      ]],
+      ['15:00', '15:29', [ 13*60,        12*60+30,    12*60,       null      ]],
+      ['15:30', '15:59', [ 12*60+45,     null,        null,        null      ]],
+      ['16:00', '16:29', [ 12*60+30,     null,        null,        null      ]],
+      ['16:30', '16:59', [ 12*60+15,     null,        null,        null      ]],
+      ['17:00', '17:29', [ 12*60,        null,        null,        null      ]],
+      ['17:30', '17:59', [ 11*60+45,     null,        null,        null      ]],
+      ['18:00', '18:29', [ 11*60+30,     null,        null,        null      ]],
+      ['18:30', '18:59', [ 11*60+15,     null,        null,        null      ]],
+      // ── Prohibited window (19:00–23:59) ──
+      ['19:00', '23:59', [ null,         null,        null,        null      ]],
     ]
   }
 };
@@ -740,6 +745,27 @@ function buildModalBaseTable() {
   });
 }
 
+function buildModalExtTable() {
+  const tbody = document.getElementById('modalExtBody');
+  tbody.innerHTML = '';
+  FDP_DATA.EUROWINGS.extTable.forEach(function(row) {
+    const tr = document.createElement('tr');
+    const allNull = row[2].every(function(v) { return v === null; });
+    let cells = '<td>' + row[0] + '–' + row[1] + '</td>';
+    for (let c = 0; c < row[2].length; c++) {
+      const v = row[2][c];
+      if (v === null) {
+        cells += '<td style="color:var(--red);font-size:0.72rem">N/A</td>';
+      } else {
+        cells += '<td style="color:var(--green)">' + formatDuration(v) + '</td>';
+      }
+    }
+    tr.innerHTML = cells;
+    if (allNull) tr.style.opacity = '0.5';
+    tbody.appendChild(tr);
+  });
+}
+
 // ═══════════════════════════════════════════════════════════════════
 //  SECTOR INPUTS
 // ═══════════════════════════════════════════════════════════════════
@@ -793,13 +819,19 @@ function getFDPLimit(reportMins, numSectors) {
   return null;
 }
 
-// Returns true if EW operator extension is prohibited for this report time
-function isEWExtProhibited(reportMins) {
-  const windows = FDP_DATA.EUROWINGS.extProhibited;
-  for (let i = 0; i < windows.length; i++) {
-    if (reportMins >= hhmmToMins(windows[i][0]) && reportMins <= hhmmToMins(windows[i][1])) return true;
+// Returns the extended FDP total (minutes) for EW, or null if prohibited.
+// numSectors must be 1-5 (6 is always prohibited, handled separately).
+function getEWExtendedFDP(reportMins, numSectors) {
+  if (numSectors > 5) return null; // 6 sectors: never allowed
+  // Column index: 0=1-2sec, 1=3sec, 2=4sec, 3=5sec
+  const colIdx = numSectors <= 2 ? 0 : numSectors === 3 ? 1 : numSectors === 4 ? 2 : 3;
+  const rows = FDP_DATA.EUROWINGS.extTable;
+  for (let i = 0; i < rows.length; i++) {
+    const start = hhmmToMins(rows[i][0]);
+    const end   = hhmmToMins(rows[i][1]);
+    if (reportMins >= start && reportMins <= end) return rows[i][2][colIdx]; // null if prohibited
   }
-  return false;
+  return null; // not found → prohibited
 }
 
 // Night duty: FDP overlaps 02:00–05:59 UTC
@@ -881,40 +913,73 @@ function calculate() {
     return;
   }
 
-  // ── Extension lock logic ────────────────────────────────────────
-  const sixSectorLock = (airline === 'EUROWINGS' && numSectors === 6);
-  const ewTimeLock    = (airline === 'EUROWINGS' && isEWExtProhibited(reportMins));
+  // ── FDP base lookup ─────────────────────────────────────────────
+  const baseFDP = getFDPLimit(reportMins, numSectors);
+  if (baseFDP === null) {
+    resultsContent.innerHTML = '<div class="val-red text-sm">Could not find FDP limit for this report time.</div>';
+    takeoffCard.style.display = 'none';
+    prohibitEl.style.display = 'none';
+    return;
+  }
 
-  if (sixSectorLock) {
-    opExtCb.checked = false; opExtCb.disabled = true;
-    opExtLabel.style.opacity = '0.4'; opExtLabel.style.cursor = 'not-allowed';
-    prohibitEl.style.display = 'block';
-    prohibitEl.textContent   = '⛔  Extensions Prohibited for 6 Sectors (EW OM-A)';
-  } else if (ewTimeLock) {
-    opExtCb.checked = false; opExtCb.disabled = true;
-    opExtLabel.style.opacity = '0.4'; opExtLabel.style.cursor = 'not-allowed';
-    prohibitEl.style.display = 'block';
-    prohibitEl.innerHTML     = '⛔  Operator Extension Prohibited — report ' +
-      minsToHHMM(reportMins) + ' UTC falls in restricted window (EW OM-A: 19:00–06:14)';
+  // ── EW Operator Extension: direct table lookup ──────────────────
+  // For EW: extension gives a specific total FDP (not always base+1h).
+  // For EASA: flat +1h if checkbox ticked.
+  let ewExtendedFDP = null; // total FDP if extension applied (EW only)
+  let ewExtProhibited = false;
+
+  if (airline === 'EUROWINGS') {
+    if (numSectors === 6) {
+      ewExtProhibited = true;
+      opExtCb.checked = false; opExtCb.disabled = true;
+      opExtLabel.style.opacity = '0.4'; opExtLabel.style.cursor = 'not-allowed';
+      prohibitEl.style.display = 'block';
+      prohibitEl.textContent   = '⛔  Operator Extension Prohibited for 6 Sectors (EW OM-A)';
+    } else {
+      ewExtendedFDP = getEWExtendedFDP(reportMins, numSectors);
+      if (ewExtendedFDP === null) {
+        ewExtProhibited = true;
+        opExtCb.checked = false; opExtCb.disabled = true;
+        opExtLabel.style.opacity = '0.4'; opExtLabel.style.cursor = 'not-allowed';
+        prohibitEl.style.display = 'block';
+        prohibitEl.innerHTML = '⛔  Operator Extension Prohibited — ' +
+          minsToHHMM(reportMins) + ' UTC / ' + numSectors + ' sector(s) not in EW extension table';
+      } else {
+        opExtCb.disabled = false;
+        opExtLabel.style.opacity = '1'; opExtLabel.style.cursor = 'pointer';
+        prohibitEl.style.display = 'none';
+      }
+    }
   } else {
+    // EASA: no time-based restriction on extension toggle
     opExtCb.disabled = false;
     opExtLabel.style.opacity = '1'; opExtLabel.style.cursor = 'pointer';
     prohibitEl.style.display = 'none';
   }
 
-  const opExt = opExtCb.checked ? 60  : 0;
-  const cdExt = cdExtCb.checked ? 120 : 0;
+  // Compute actual max FDP
+  const opExtActive = opExtCb.checked && !ewExtProhibited;
+  const cdExtActive = cdExtCb.checked;
 
-  // ── FDP limit lookup ────────────────────────────────────────────
-  const baseFDP = getFDPLimit(reportMins, numSectors);
-  if (baseFDP === null) {
-    resultsContent.innerHTML = '<div class="val-red text-sm">Could not find FDP limit for this report time.</div>';
-    takeoffCard.style.display = 'none';
-    return;
+  let maxFDP;
+  if (airline === 'EUROWINGS') {
+    if (opExtActive && ewExtendedFDP !== null) {
+      // EW: use the direct extended FDP total (already includes the increment)
+      maxFDP = ewExtendedFDP + (cdExtActive ? 120 : 0);
+    } else {
+      maxFDP = baseFDP + (cdExtActive ? 120 : 0);
+    }
+  } else {
+    // EASA: flat +1h op ext, +2h CD
+    maxFDP = baseFDP + (opExtActive ? 60 : 0) + (cdExtActive ? 120 : 0);
   }
 
-  const extTotal           = opExt + cdExt;
-  const maxFDP             = baseFDP + extTotal;
+  // Extension increment shown in results (for display)
+  const opExtMins = (opExtActive && airline === 'EUROWINGS' && ewExtendedFDP !== null)
+    ? ewExtendedFDP - baseFDP   // actual increment from table
+    : (opExtActive ? 60 : 0);  // EASA flat
+
+  const extTotal = opExtMins + (cdExtActive ? 120 : 0);
   const fdpEndMins         = reportMins + maxFDP;
   const latestOnBlocksMins = fdpEndMins - postFlight;
 
@@ -946,7 +1011,7 @@ function calculate() {
   }
 
   // Both extensions caution
-  if (opExt && cdExt) {
+  if (opExtActive && cdExtActive) {
     html += '<div class="warn-banner mb-3">CAUTION: Operator Extension AND Commander\'s Discretion active. Verify compliance.</div>';
   }
 
@@ -956,8 +1021,10 @@ function calculate() {
   html += '<div class="result-row"><span class="label">Base FDP Limit</span><span class="val-amber">' + formatDuration(baseFDP) + '</span></div>';
 
   if (extTotal > 0) {
-    html += '<div class="result-row"><span class="label">Extensions</span><span class="val-green">+' + formatDuration(extTotal) +
-      (opExt ? ' Op' : '') + (cdExt ? (opExt ? ' + CMD Disc.' : ' CMD Disc.') : '') + '</span></div>';
+    const extLabel = (opExtActive ? 'Op Ext +' + formatDuration(opExtMins) : '') +
+                     (opExtActive && cdExtActive ? ' + ' : '') +
+                     (cdExtActive ? 'CMD Disc. +02:00' : '');
+    html += '<div class="result-row"><span class="label">Extensions</span><span class="val-green">' + extLabel + '</span></div>';
     html += '<div class="result-row"><span class="label">Max FDP (with ext.)</span><span class="val-green" style="font-size:1.2rem">' + formatDuration(maxFDP) + '</span></div>';
   } else {
     html += '<div class="result-row"><span class="label">Max FDP</span><span class="val-green" style="font-size:1.2rem">' + formatDuration(maxFDP) + '</span></div>';
@@ -1034,6 +1101,7 @@ function calculate() {
   } catch(e) { applyTheme('night'); }
 
   buildModalBaseTable();
+  buildModalExtTable();
   renderSectorInputs();
   renderFDPTable();
   calculate();
