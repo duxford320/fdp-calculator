@@ -1132,8 +1132,8 @@ function calculate() {
 (function init() {
   // Restore theme
   try {
-    applyTheme(localStorage.getItem('fdp-theme') === 'day' ? 'day' : 'night');
-  } catch(e) { applyTheme('night'); }
+    applyTheme(localStorage.getItem('fdp-theme') === 'night' ? 'night' : 'day');
+  } catch(e) { applyTheme('day'); }
 
   buildModalBaseTable();
   buildModalExtTable();
