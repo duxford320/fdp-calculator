@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#0a0a0a" />
-  <title>FDP Calculator</title>
+  <title>FDP Calculator · EASA ORO.FTL.205</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <style>
@@ -560,6 +560,64 @@
 <!-- ═══════════════════════════════ MAIN UI ═══════════════════════════════ -->
 <div class="max-w-2xl mx-auto">
 
+  <!-- LOGO / APP HEADER -->
+  <div style="text-align:center;padding:28px 0 20px">
+    <svg viewBox="0 0 320 90" xmlns="http://www.w3.org/2000/svg"
+         style="width:100%;max-width:320px;display:inline-block" role="img" aria-label="FDP Calculator">
+
+      <!-- Runway / timeline bar -->
+      <line x1="20" y1="72" x2="300" y2="72" stroke="#2a2a2a" stroke-width="2"/>
+      <!-- Dashed centre line -->
+      <line x1="20" y1="72" x2="300" y2="72" stroke="#f59e0b" stroke-width="1"
+            stroke-dasharray="8 6" opacity="0.35"/>
+
+      <!-- Timeline ticks -->
+      <line x1="20"  y1="68" x2="20"  y2="76" stroke="#f59e0b" stroke-width="1.2" opacity="0.5"/>
+      <line x1="90"  y1="68" x2="90"  y2="76" stroke="#f59e0b" stroke-width="1.2" opacity="0.5"/>
+      <line x1="160" y1="65" x2="160" y2="76" stroke="#10b981" stroke-width="1.5" opacity="0.8"/>
+      <line x1="230" y1="68" x2="230" y2="76" stroke="#f59e0b" stroke-width="1.2" opacity="0.5"/>
+      <line x1="300" y1="68" x2="300" y2="76" stroke="#f59e0b" stroke-width="1.2" opacity="0.5"/>
+
+      <!-- FDP window bracket — green zone -->
+      <rect x="90" y="69" width="210" height="6" rx="1"
+            fill="#10b981" opacity="0.18"/>
+      <line x1="90"  y1="66" x2="90"  y2="78" stroke="#10b981" stroke-width="1.5" opacity="0.7"/>
+      <line x1="300" y1="66" x2="300" y2="78" stroke="#10b981" stroke-width="1.5" opacity="0.7"/>
+
+      <!-- Aircraft silhouette — cruising left-to-right at mid-point -->
+      <!-- Fuselage -->
+      <ellipse cx="160" cy="45" rx="38" ry="6.5" fill="#f59e0b" opacity="0.95"/>
+      <!-- Nose cone -->
+      <path d="M198 45 Q212 45 218 44 Q212 46 198 45Z" fill="#f59e0b" opacity="0.95"/>
+      <!-- Tail fin -->
+      <path d="M122 45 Q118 36 112 32 Q116 38 122 42Z" fill="#f59e0b" opacity="0.85"/>
+      <!-- Main wings -->
+      <path d="M155 45 L130 62 L128 64 L134 62 L160 47Z" fill="#f59e0b" opacity="0.9"/>
+      <path d="M165 45 L130 28 L128 26 L134 28 L160 43Z" fill="#f59e0b" opacity="0.9"/>
+      <!-- Engine pods -->
+      <ellipse cx="146" cy="58" rx="9" ry="3.5" fill="#d97706" opacity="0.85"/>
+      <ellipse cx="146" cy="32" rx="9" ry="3.5" fill="#d97706" opacity="0.85"/>
+      <!-- Winglet hints -->
+      <line x1="130" y1="62" x2="127" y2="65" stroke="#f59e0b" stroke-width="1.5" opacity="0.7"/>
+      <line x1="130" y1="28" x2="127" y2="25" stroke="#f59e0b" stroke-width="1.5" opacity="0.7"/>
+
+      <!-- Glow under aircraft -->
+      <ellipse cx="160" cy="73" rx="28" ry="3" fill="#f59e0b" opacity="0.07"/>
+
+      <!-- App title text -->
+      <text x="160" y="16" text-anchor="middle"
+            font-family="'Share Tech Mono', monospace"
+            font-size="13" letter-spacing="5"
+            fill="#f59e0b" opacity="0.9">FDP CALCULATOR</text>
+
+      <!-- Subtitle -->
+      <text x="160" y="88" text-anchor="middle"
+            font-family="'Share Tech Mono', monospace"
+            font-size="7" letter-spacing="2"
+            fill="#6b7280">FLIGHT DUTY PERIOD · EASA · ORO.FTL.205</text>
+    </svg>
+  </div>
+
   <!-- CLOCK -->
   <div class="card mb-4">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
@@ -752,7 +810,7 @@
   </div>
 
   <div class="text-xs val-dim text-center mb-4">
-    FDP Calculator v3.2 · For reference only · Always verify with official documentation<br/>
+    FDP Calculator v3.3 · For reference only · Always verify with official documentation<br/>
     Works offline after first load · PWA enabled
   </div>
 </div>
@@ -1944,7 +2002,7 @@ function nlApplyToCalculator() {
 <script>
 if ('serviceWorker' in navigator) {
   const SW = `
-const CACHE = 'fdp-v5';
+const CACHE = 'fdp-v6';
 self.addEventListener('install', function(e) { self.skipWaiting(); });
 self.addEventListener('activate', function(e) {
   e.waitUntil(caches.keys().then(function(keys) {
