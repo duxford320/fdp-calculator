@@ -469,12 +469,6 @@
         <div id="nlOcrPreviewImg" style="margin-top:10px;text-align:center;display:none">
           <img id="nlThumb" style="max-height:120px;border-radius:4px;border:1px solid var(--border)" />
         </div>
-        <div id="nlRawOcr" style="display:none;margin-top:10px">
-          <div style="font-size:0.68rem;color:var(--text-dim);margin-bottom:4px;letter-spacing:0.08em">RAW OCR TEXT (for debugging)</div>
-          <pre style="font-size:0.68rem;color:var(--text-dim);background:var(--surface3);border:1px solid var(--border2);
-                      border-radius:4px;padding:8px;max-height:120px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;
-                      font-family:'Share Tech Mono',monospace;line-height:1.5"></pre>
-        </div>
       </div>
 
       <!-- ── TAB: Paste Text ── -->
@@ -1624,7 +1618,6 @@ function nlResetPreview() {
   document.getElementById('nlProgress').style.display = 'none';
   document.getElementById('nlBarWrap').style.display = 'none';
   document.getElementById('nlOcrPreviewImg').style.display = 'none';
-  document.getElementById('nlRawOcr').style.display = 'none';
   document.getElementById('nlPasteArea') && (document.getElementById('nlPasteArea').value = '');
   document.getElementById('nlFileInput').value = '';
   document.getElementById('nlDropZone').classList.remove('drag-over');
@@ -1681,12 +1674,6 @@ function nlRunOCR(file) {
     setTimeout(function() {
       barWrap.style.display = 'none';
       progressEl.style.display = 'none';
-      // Show raw OCR text for debugging
-      var rawEl = document.getElementById('nlRawOcr');
-      if (rawEl) {
-        rawEl.style.display = 'block';
-        rawEl.querySelector('pre').textContent = result.data.text;
-      }
       nlParseAndPreview(result.data.text);
     }, 400);
   }).catch(function(err) {
