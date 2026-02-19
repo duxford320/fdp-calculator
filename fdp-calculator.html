@@ -1682,9 +1682,10 @@ function nlParseRoster(raw) {
   var text = raw.replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
 
   // ── Report time: look for C/I ... <AIRPORT> <TIME> ──
-  // Pattern: "C/I" then optionally some chars, then 3-letter airport, then 4-digit time
-  var ciMatch = text.match(/C\s*[\/\\|]\s*I\s+(?:[A-Z]{3}\s+)?([A-Z]{3})\s+(\d{4})/);
-  // Fallback: C/I without airport
+  // Pattern: "C/I" then up to ~30 chars (skipping "Pick Up", extra tokens, etc.),
+  // then optional 3-letter airport, then 4-digit time
+  var ciMatch = text.match(/C\s*[\/\\|]\s*I\b.{0,30}?([A-Z]{3})\s+(\d{4})/);
+  // Fallback: C/I followed directly by 4-digit time
   if (!ciMatch) ciMatch = text.match(/C\s*[\/\\|]\s*I\s+(\d{4})/);
 
   var reportTime = null;
@@ -1698,7 +1699,8 @@ function nlParseRoster(raw) {
   // Pattern: EW <FLIGHTNO> <ORIGIN> <STD> <STA> <DEST> <STATUS?>
   // EW may be OCR'd as "EW" or "EW " — flight number is 3-5 digits
   var sectors = [];
-  var sectorRe = /EW\s+\d{3,5}\s+([A-Z]{3})\s+(\d{4})\s+(\d{4})\s+([A-Z]{3})/g;
+  // Optional single-letter token (e.g. "R" for rotation) between flight number and origin airport
+  var sectorRe = /EW\s+\d{3,5}\s+(?:[A-Z]\s+)?([A-Z]{3})\s+(\d{4})\s+(\d{4})\s+([A-Z]{3})/g;
   var m;
   while ((m = sectorRe.exec(text)) !== null) {
     var origin = m[1];
