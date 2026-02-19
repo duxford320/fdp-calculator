@@ -722,6 +722,7 @@
   <!-- LATEST TAKEOFFS -->
   <div class="card mb-4" id="takeoffCard" style="display:none">
     <div class="section-head">Latest Takeoff Times (UTC)</div>
+    <div id="toCountdown" style="display:none"></div>
     <div id="takeoffContent"></div>
   </div>
 
@@ -751,7 +752,7 @@
   </div>
 
   <div class="text-xs val-dim text-center mb-4">
-    FDP Calculator v3.0 · For reference only · Always verify with official documentation<br/>
+    FDP Calculator v3.1 · For reference only · Always verify with official documentation<br/>
     Works offline after first load · PWA enabled
   </div>
 </div>
@@ -912,8 +913,9 @@ function formatTimeInput(input) {
 const DAYS   = ['SUN','MON','TUE','WED','THU','FRI','SAT'];
 const MONTHS = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
 
-// Saved by calculate(), read every second by updateCountdown()
-var fdpEndMinsSaved = null;
+// Saved by calculate(), read every second by updateCountdown() / updateTOCountdown()
+var fdpEndMinsSaved  = null;
+var latestS1TOMins   = null;  // latest S1 takeoff time in minutes (may be > 1440)
 
 function updateCountdown() {
   var el = document.getElementById('fdpCountdown');
@@ -953,6 +955,42 @@ function updateCountdown() {
     '</div>';
 }
 
+function updateTOCountdown() {
+  var el = document.getElementById('toCountdown');
+  if (!el) return;
+  if (latestS1TOMins === null) { el.style.display = 'none'; return; }
+
+  var now = new Date();
+  var nowMins = now.getUTCHours() * 60 + now.getUTCMinutes() + now.getUTCSeconds() / 60;
+  var remaining = latestS1TOMins - nowMins;
+  if (remaining > 1440) remaining -= 1440;
+
+  el.style.display = 'block';
+
+  if (remaining <= 0) {
+    el.innerHTML =
+      '<div style="color:var(--red);font-size:0.85rem;text-align:center;padding:8px 0;border-bottom:1px solid var(--text-result-border)">' +
+        'LATEST S1 T/O TIME PASSED' +
+      '</div>';
+    return;
+  }
+
+  var h = Math.floor(remaining / 60);
+  var m = Math.floor(remaining % 60);
+  var s = Math.floor((remaining * 60) % 60);
+  var fmt = String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+  var colour = remaining <= 15 ? 'var(--red)' : remaining <= 30 ? 'var(--primary)' : 'var(--green)';
+
+  el.innerHTML =
+    '<div style="border-bottom:1px solid var(--text-result-border);padding:8px 0 10px;margin-bottom:8px">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center">' +
+        '<span class="label">S1 Takeoff In</span>' +
+        '<span style="font-size:1.4rem;color:' + colour + ';font-family:\'Share Tech Mono\',monospace;' +
+          'text-shadow:0 0 12px ' + colour + '33">' + fmt + '</span>' +
+      '</div>' +
+    '</div>';
+}
+
 function updateClock() {
   const n = new Date();
   const h = String(n.getUTCHours()).padStart(2,'0');
@@ -963,6 +1001,7 @@ function updateClock() {
     DAYS[n.getUTCDay()] + ' ' + String(n.getUTCDate()).padStart(2,'0') + ' ' +
     MONTHS[n.getUTCMonth()] + ' ' + n.getUTCFullYear() + ' UTC';
   updateCountdown();
+  updateTOCountdown();
 }
 setInterval(updateClock, 1000);
 updateClock();
@@ -1126,15 +1165,15 @@ function onActualTOChange(i) {
   var to  = parseHHMM(document.getElementById('actualTO' + i).value);
   var blk = parseHHMM(document.getElementById('sector' + i).value);
   var ldg = parseHHMM(document.getElementById('actualLDG' + i) ? document.getElementById('actualLDG' + i).value : '');
-  if (to !== null && ldg !== null) {
-    // T/O + LDG both present → compute actual block time (highest priority)
+  if (to !== null && blk !== null) {
+    // Block time is fixed — delay shifts LDG forward, block stays the same
+    document.getElementById('actualLDG' + i).value = minsToHHMM(to + blk);
+    cascadeActualTimes(i);
+  } else if (to !== null && ldg !== null) {
+    // No block yet — derive block from T/O + LDG
     var actualBlock = ldg - to;
     if (actualBlock < 0) actualBlock += 1440;
     document.getElementById('sector' + i).value = formatDuration(actualBlock);
-  } else if (to !== null && blk !== null) {
-    // T/O + Block → compute LDG
-    document.getElementById('actualLDG' + i).value = minsToHHMM(to + blk);
-    cascadeActualTimes(i);
   }
   calculate();
 }
@@ -1389,6 +1428,7 @@ function calculate() {
     takeoffCard.style.display = 'none';
     prohibitEl.style.display  = 'none';
     fdpEndMinsSaved = null;
+    latestS1TOMins  = null;
     document.getElementById('fdpCountdown').style.display = 'none';
     document.getElementById('restCard').style.display = 'none';
     return;
@@ -1401,6 +1441,7 @@ function calculate() {
     takeoffCard.style.display = 'none';
     prohibitEl.style.display = 'none';
     fdpEndMinsSaved = null;
+    latestS1TOMins  = null;
     document.getElementById('fdpCountdown').style.display = 'none';
     document.getElementById('restCard').style.display = 'none';
     return;
@@ -1544,6 +1585,7 @@ function calculate() {
   // ── Latest Takeoff (chain backwards) ───────────────────────────
   if (!allSectorsEntered) {
     takeoffCard.style.display = 'none';
+    latestS1TOMins = null;
     resultsContent.innerHTML += '<div class="text-xs val-dim mt-3 pt-3" style="border-top:1px solid var(--text-result-border)">Enter all sector block times above to see Latest Takeoff Times.</div>';
     return;
   }
@@ -1561,6 +1603,7 @@ function calculate() {
     latestTakeoffs[i] = latestOnBlocks[i]     - sectorTimes[i];
   }
 
+  latestS1TOMins = latestTakeoffs[0];
   takeoffCard.style.display = 'block';
   let tHtml = '';
 
@@ -1873,7 +1916,7 @@ function nlApplyToCalculator() {
 <script>
 if ('serviceWorker' in navigator) {
   const SW = `
-const CACHE = 'fdp-v3';
+const CACHE = 'fdp-v4';
 self.addEventListener('install', function(e) { self.skipWaiting(); });
 self.addEventListener('activate', function(e) {
   e.waitUntil(caches.keys().then(function(keys) {
