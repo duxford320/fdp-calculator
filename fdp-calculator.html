@@ -474,6 +474,10 @@
           <div style="color:var(--text-dim);font-size:0.85rem">Drop screenshot here or tap to select</div>
           <div style="color:var(--text-dim);font-size:0.72rem;margin-top:4px">PNG, JPG, BMP — Netline roster screenshot</div>
         </div>
+        <div class="info-banner" style="margin-top:10px">
+          ⚠ OCR accuracy is limited — flight numbers, times and C/I may be misread. Always verify parsed data before applying.
+          Paste Text is more reliable.
+        </div>
         <input type="file" id="nlFileInput" accept="image/*" style="display:none" onchange="nlHandleFile(this.files[0])">
         <div id="nlProgress" style="display:none"></div>
         <div class="nl-ocr-bar-wrap" id="nlBarWrap"><div class="nl-ocr-bar" id="nlBar"></div></div>
