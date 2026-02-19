@@ -752,7 +752,7 @@
   </div>
 
   <div class="text-xs val-dim text-center mb-4">
-    FDP Calculator v3.1 · For reference only · Always verify with official documentation<br/>
+    FDP Calculator v3.2 · For reference only · Always verify with official documentation<br/>
     Works offline after first load · PWA enabled
   </div>
 </div>
@@ -914,8 +914,9 @@ const DAYS   = ['SUN','MON','TUE','WED','THU','FRI','SAT'];
 const MONTHS = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
 
 // Saved by calculate(), read every second by updateCountdown() / updateTOCountdown()
-var fdpEndMinsSaved  = null;
-var latestS1TOMins   = null;  // latest S1 takeoff time in minutes (may be > 1440)
+var fdpEndMinsSaved   = null;
+var latestS1TOMins    = null;   // kept for backwards compat; first entry of latestTOArr
+var latestTOArr       = null;   // array of latest T/O mins per sector (null when not calculated)
 
 function updateCountdown() {
   var el = document.getElementById('fdpCountdown');
@@ -958,19 +959,36 @@ function updateCountdown() {
 function updateTOCountdown() {
   var el = document.getElementById('toCountdown');
   if (!el) return;
-  if (latestS1TOMins === null) { el.style.display = 'none'; return; }
+  if (!latestTOArr) { el.style.display = 'none'; return; }
+
+  // Find the first sector without an actual T/O entered — that's the actionable one
+  var targetIdx = -1;
+  var targetMins = null;
+  for (var i = 0; i < latestTOArr.length; i++) {
+    var toInp = document.getElementById('actualTO' + i);
+    var hasActual = toInp && toInp.value && parseHHMM(toInp.value) !== null;
+    if (!hasActual) {
+      targetIdx = i;
+      targetMins = latestTOArr[i];
+      break;
+    }
+  }
+
+  // All sectors have actual T/O entered — nothing to count down to
+  if (targetIdx === -1) { el.style.display = 'none'; return; }
 
   var now = new Date();
   var nowMins = now.getUTCHours() * 60 + now.getUTCMinutes() + now.getUTCSeconds() / 60;
-  var remaining = latestS1TOMins - nowMins;
+  var remaining = targetMins - nowMins;
   if (remaining > 1440) remaining -= 1440;
 
   el.style.display = 'block';
+  var label = 'S' + (targetIdx + 1) + ' Takeoff In';
 
   if (remaining <= 0) {
     el.innerHTML =
       '<div style="color:var(--red);font-size:0.85rem;text-align:center;padding:8px 0;border-bottom:1px solid var(--text-result-border)">' +
-        'LATEST S1 T/O TIME PASSED' +
+        'LATEST S' + (targetIdx + 1) + ' T/O TIME PASSED' +
       '</div>';
     return;
   }
@@ -984,7 +1002,7 @@ function updateTOCountdown() {
   el.innerHTML =
     '<div style="border-bottom:1px solid var(--text-result-border);padding:8px 0 10px;margin-bottom:8px">' +
       '<div style="display:flex;justify-content:space-between;align-items:center">' +
-        '<span class="label">S1 Takeoff In</span>' +
+        '<span class="label">' + label + '</span>' +
         '<span style="font-size:1.4rem;color:' + colour + ';font-family:\'Share Tech Mono\',monospace;' +
           'text-shadow:0 0 12px ' + colour + '33">' + fmt + '</span>' +
       '</div>' +
@@ -1132,7 +1150,7 @@ function renderSectorInputs() {
         '<span style="color:var(--text-dim);font-size:0.75rem;flex-shrink:0">&#x21B3; Turnaround</span>' +
         '<input type="number" min="0" max="240" ' +
           'style="width:70px;font-size:0.8rem;padding:3px 6px;text-align:center" ' +
-          'oninput="calculate()" ' +
+          'oninput="cascadeActualTimes(' + i + '); calculate()" ' +
           'value="' + (existingTA[i] || defaultTA) + '" id="ta' + i + '" />' +
         '<span style="color:var(--text-dim);font-size:0.75rem">min</span>';
       container.appendChild(taDiv);
@@ -1147,15 +1165,12 @@ function onBlockChange(i) {
   var to  = parseHHMM(document.getElementById('actualTO' + i) ? document.getElementById('actualTO' + i).value : '');
   var ldg = parseHHMM(document.getElementById('actualLDG' + i) ? document.getElementById('actualLDG' + i).value : '');
   var blk = parseHHMM(document.getElementById('sector' + i).value);
-  // If actual T/O and LDG are both already set, don't overwrite them from block
-  if (to !== null && ldg !== null) {
-    // Both actuals present — just recalculate (block was already set by bidirectional logic)
-  } else if (to !== null && blk !== null) {
-    // T/O + Block → compute LDG
+  if (to !== null && blk !== null) {
+    // T/O is the anchor — block change shifts LDG
     document.getElementById('actualLDG' + i).value = minsToHHMM(to + blk);
     cascadeActualTimes(i);
   } else if (ldg !== null && blk !== null) {
-    // LDG + Block → compute T/O
+    // No T/O yet — back-calculate T/O from LDG
     document.getElementById('actualTO' + i).value = minsToHHMM(ldg - blk);
   }
   calculate();
@@ -1429,6 +1444,7 @@ function calculate() {
     prohibitEl.style.display  = 'none';
     fdpEndMinsSaved = null;
     latestS1TOMins  = null;
+    latestTOArr     = null;
     document.getElementById('fdpCountdown').style.display = 'none';
     document.getElementById('restCard').style.display = 'none';
     return;
@@ -1442,6 +1458,7 @@ function calculate() {
     prohibitEl.style.display = 'none';
     fdpEndMinsSaved = null;
     latestS1TOMins  = null;
+    latestTOArr     = null;
     document.getElementById('fdpCountdown').style.display = 'none';
     document.getElementById('restCard').style.display = 'none';
     return;
@@ -1488,14 +1505,15 @@ function calculate() {
 
   let maxFDP;
   if (airline === 'EUROWINGS') {
-    if (opExtActive && ewExtendedFDP !== null) {
-      // EW: use the direct extended FDP total (already includes the increment)
-      maxFDP = ewExtendedFDP + (cdExtActive ? 120 : 0);
-    } else {
-      maxFDP = baseFDP + (cdExtActive ? 120 : 0);
-    }
+    // EW: ewExtendedFDP is the hard ceiling from the OM-A table.
+    // Neither Op Ext alone nor CD alone nor both combined can exceed it.
+    // CD on top of base is still capped at ewExtendedFDP.
+    const ceiling = ewExtendedFDP !== null ? ewExtendedFDP : baseFDP;
+    const uncapped = baseFDP + (opExtActive ? (ewExtendedFDP !== null ? ewExtendedFDP - baseFDP : 0) : 0)
+                             + (cdExtActive ? 120 : 0);
+    maxFDP = Math.min(uncapped, ceiling);
   } else {
-    // EASA: flat +1h op ext, +2h CD
+    // EASA: flat +1h op ext, +2h CD, no hard ceiling
     maxFDP = baseFDP + (opExtActive ? 60 : 0) + (cdExtActive ? 120 : 0);
   }
 
@@ -1504,7 +1522,14 @@ function calculate() {
     ? ewExtendedFDP - baseFDP   // actual increment from table
     : (opExtActive ? 60 : 0);  // EASA flat
 
-  const extTotal = opExtMins + (cdExtActive ? 120 : 0);
+  // CD increment — capped so total doesn't exceed ewExtendedFDP (EW only)
+  const cdExtMins = cdExtActive
+    ? (airline === 'EUROWINGS' && ewExtendedFDP !== null
+        ? Math.max(0, maxFDP - baseFDP - opExtMins)  // whatever room is left after op ext
+        : 120)
+    : 0;
+
+  const extTotal = opExtMins + cdExtMins;
   const fdpEndMins         = reportMins + maxFDP;
   const latestOnBlocksMins = fdpEndMins - postFlight;
 
@@ -1556,8 +1581,9 @@ function calculate() {
 
   if (extTotal > 0) {
     const extLabel = (opExtActive ? 'Op Ext +' + formatDuration(opExtMins) : '') +
-                     (opExtActive && cdExtActive ? ' + ' : '') +
-                     (cdExtActive ? 'CMD Disc. +02:00' : '');
+                     (opExtActive && cdExtActive && cdExtMins > 0 ? ' + ' : '') +
+                     (cdExtActive && cdExtMins > 0 ? 'CMD Disc. +' + formatDuration(cdExtMins) : '') +
+                     (cdExtActive && cdExtMins === 0 ? ' (CMD Disc. — no room, table cap reached)' : '');
     html += '<div class="result-row"><span class="label">Extensions</span><span class="val-green">' + extLabel + '</span></div>';
     html += '<div class="result-row"><span class="label">Max FDP (with ext.)</span><span class="val-green" style="font-size:1.2rem">' + formatDuration(maxFDP) + '</span></div>';
   } else {
@@ -1586,6 +1612,7 @@ function calculate() {
   if (!allSectorsEntered) {
     takeoffCard.style.display = 'none';
     latestS1TOMins = null;
+    latestTOArr    = null;
     resultsContent.innerHTML += '<div class="text-xs val-dim mt-3 pt-3" style="border-top:1px solid var(--text-result-border)">Enter all sector block times above to see Latest Takeoff Times.</div>';
     return;
   }
@@ -1604,6 +1631,7 @@ function calculate() {
   }
 
   latestS1TOMins = latestTakeoffs[0];
+  latestTOArr    = latestTakeoffs.slice();
   takeoffCard.style.display = 'block';
   let tHtml = '';
 
@@ -1916,7 +1944,7 @@ function nlApplyToCalculator() {
 <script>
 if ('serviceWorker' in navigator) {
   const SW = `
-const CACHE = 'fdp-v4';
+const CACHE = 'fdp-v5';
 self.addEventListener('install', function(e) { self.skipWaiting(); });
 self.addEventListener('activate', function(e) {
   e.waitUntil(caches.keys().then(function(keys) {
