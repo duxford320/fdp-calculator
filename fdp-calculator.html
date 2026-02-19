@@ -1613,10 +1613,10 @@ function nlSwitchTab(tab) {
   document.getElementById('nlPanelPaste').style.display      = isScreenshot ? 'none' : 'block';
   document.getElementById('nlTabScreenshot').classList.toggle('active', isScreenshot);
   document.getElementById('nlTabPaste').classList.toggle('active', !isScreenshot);
-  nlResetPreview();
+  nlClearResults();
 }
 
-function nlResetPreview() {
+function nlClearResults() {
   nlParsed = null;
   document.getElementById('nlPreviewSection').style.display = 'none';
   document.getElementById('nlProgress').style.display = 'none';
@@ -1625,7 +1625,11 @@ function nlResetPreview() {
   document.getElementById('nlPasteArea') && (document.getElementById('nlPasteArea').value = '');
   document.getElementById('nlFileInput').value = '';
   document.getElementById('nlDropZone').classList.remove('drag-over');
-  // Default to paste tab
+}
+
+function nlResetPreview() {
+  nlClearResults();
+  // Reset to default tab (paste)
   document.getElementById('nlPanelPaste').style.display = 'block';
   document.getElementById('nlPanelScreenshot').style.display = 'none';
   document.getElementById('nlTabPaste').classList.add('active');
