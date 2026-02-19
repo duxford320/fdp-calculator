@@ -74,8 +74,6 @@
       min-height: 100vh;
       transition: background 0.25s, color 0.25s;
     }
-    .mono { font-family: 'Share Tech Mono', monospace; }
-
     input[type="text"], input[type="number"] {
       background: var(--surface3);
       border: 1px solid var(--border);
@@ -1036,7 +1034,7 @@ function buildModalExtTable() {
 function onSectorCountChange() { renderSectorInputs(); calculate(); }
 
 function renderSectorInputs() {
-  const n = Math.min(6, Math.max(1, parseInt(document.getElementById('numSectors').value) || 1));
+  const n = getNumSectors();
   const defaultTA = parseInt(document.getElementById('turnaround').value) || 35;
   const container = document.getElementById('sectorInputs');
 
@@ -1162,7 +1160,7 @@ function onActualLDGChange(i) {
 // Cascade: when sector i's actual LDG is known, compute sector i+1 actual T/O
 // using the turnaround between them, then propagate forward.
 function cascadeActualTimes(fromIdx) {
-  var n = Math.min(6, Math.max(1, parseInt(document.getElementById('numSectors').value) || 1));
+  var n = getNumSectors();
   for (var i = fromIdx; i < n - 1; i++) {
     var ldgInp = document.getElementById('actualLDG' + i);
     var toNext = document.getElementById('actualTO' + (i+1));
@@ -1187,6 +1185,10 @@ function cascadeActualTimes(fromIdx) {
 // ═══════════════════════════════════════════════════════════════════
 function getAirline() {
   return document.querySelector('input[name="airline"]:checked').value;
+}
+
+function getNumSectors() {
+  return Math.min(6, Math.max(1, parseInt(document.getElementById('numSectors').value) || 1));
 }
 
 function getFDPLimit(reportMins, numSectors) {
@@ -1356,7 +1358,7 @@ function renderRestCard(maxFDP, fdpEndMins, airline) {
 // ═══════════════════════════════════════════════════════════════════
 function calculate() {
   const reportStr  = document.getElementById('reportTime').value.trim();
-  const numSectors = Math.min(6, Math.max(1, parseInt(document.getElementById('numSectors').value) || 1));
+  const numSectors = getNumSectors();
   const postFlight = parseInt(document.getElementById('postFlight').value) || 30;
   const turnaround = parseInt(document.getElementById('turnaround').value) || 35;
   const airline    = getAirline();
@@ -1410,33 +1412,33 @@ function calculate() {
   let ewExtendedFDP = null; // total FDP if extension applied (EW only)
   let ewExtProhibited = false;
 
-  if (airline === 'EUROWINGS') {
-    if (numSectors === 6) {
-      ewExtProhibited = true;
-      opExtCb.checked = false; opExtCb.disabled = true;
-      opExtLabel.style.opacity = '0.4'; opExtLabel.style.cursor = 'not-allowed';
-      prohibitEl.style.display = 'block';
-      prohibitEl.textContent   = '⛔  Operator Extension Prohibited for 6 Sectors (EW OM-A)';
-    } else {
-      ewExtendedFDP = getEWExtendedFDP(reportMins, numSectors);
-      if (ewExtendedFDP === null) {
-        ewExtProhibited = true;
-        opExtCb.checked = false; opExtCb.disabled = true;
-        opExtLabel.style.opacity = '0.4'; opExtLabel.style.cursor = 'not-allowed';
-        prohibitEl.style.display = 'block';
-        prohibitEl.innerHTML = '⛔  Operator Extension Prohibited — ' +
-          minsToHHMM(reportMins) + ' UTC / ' + numSectors + ' sector(s) not in EW extension table';
-      } else {
-        opExtCb.disabled = false;
-        opExtLabel.style.opacity = '1'; opExtLabel.style.cursor = 'pointer';
-        prohibitEl.style.display = 'none';
-      }
-    }
-  } else {
-    // EASA: no time-based restriction on extension toggle
+  function prohibitOpExt(msg) {
+    ewExtProhibited = true;
+    opExtCb.checked = false; opExtCb.disabled = true;
+    opExtLabel.style.opacity = '0.4'; opExtLabel.style.cursor = 'not-allowed';
+    prohibitEl.style.display = 'block';
+    prohibitEl.innerHTML = msg;
+  }
+  function allowOpExt() {
     opExtCb.disabled = false;
     opExtLabel.style.opacity = '1'; opExtLabel.style.cursor = 'pointer';
     prohibitEl.style.display = 'none';
+  }
+
+  if (airline === 'EUROWINGS') {
+    if (numSectors === 6) {
+      prohibitOpExt('⛔  Operator Extension Prohibited for 6 Sectors (EW OM-A)');
+    } else {
+      ewExtendedFDP = getEWExtendedFDP(reportMins, numSectors);
+      if (ewExtendedFDP === null) {
+        prohibitOpExt('⛔  Operator Extension Prohibited — ' +
+          minsToHHMM(reportMins) + ' UTC / ' + numSectors + ' sector(s) not in EW extension table');
+      } else {
+        allowOpExt();
+      }
+    }
+  } else {
+    allowOpExt();
   }
 
   // Compute actual max FDP
@@ -1667,18 +1669,18 @@ function nlRunOCR(file) {
   barWrap.style.display    = 'block';
   bar.style.width          = '0%';
 
+  var ocrStatusMsg = {
+    'loading tesseract core':    'Loading OCR engine…',
+    'initializing tesseract':    'Initialising…',
+    'loading language traineddata': 'Loading language data…'
+  };
   Tesseract.recognize(file, 'eng', {
     logger: function(m) {
       if (m.status === 'recognizing text') {
-        var pct = Math.round(m.progress * 100);
-        bar.style.width = pct + '%';
-        progressEl.textContent = 'Reading text… ' + pct + '%';
-      } else if (m.status === 'loading tesseract core') {
-        progressEl.textContent = 'Loading OCR engine…';
-      } else if (m.status === 'initializing tesseract') {
-        progressEl.textContent = 'Initialising…';
-      } else if (m.status === 'loading language traineddata') {
-        progressEl.textContent = 'Loading language data…';
+        bar.style.width = Math.round(m.progress * 100) + '%';
+        progressEl.textContent = 'Reading text… ' + Math.round(m.progress * 100) + '%';
+      } else if (ocrStatusMsg[m.status]) {
+        progressEl.textContent = ocrStatusMsg[m.status];
       }
     }
   }).then(function(result) {
@@ -1701,14 +1703,12 @@ function nlRunOCR(file) {
 // The raw text may have no newlines (all on one line) or may have them.
 // Strategy: normalise whitespace, then use regex to extract tokens.
 
-function nlFmt4(t) {
-  // "1435" → "14:35"
-  return t.slice(0,2) + ':' + t.slice(2,4);
-}
+function nlFmt4(t) { return t.slice(0,2) + ':' + t.slice(2,4); }
+function nlMins4(t) { return parseInt(t.slice(0,2)) * 60 + parseInt(t.slice(2,4)); }
 
 function nlParseRoster(raw) {
   // Normalise: collapse all whitespace variants to single space, trim
-  var text = raw.replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
+  var text = raw.replace(/\s+/g, ' ').trim();
 
   // ── Fix common OCR misreads ──────────────────────────────────────
   // "C/T" or "crt" → "C/I"
@@ -1740,10 +1740,7 @@ function nlParseRoster(raw) {
     var std    = nlFmt4(m[2]);  // scheduled/actual T/O
     var sta    = nlFmt4(m[3]);  // scheduled/actual LDG
     var dest   = m[4];
-    // Block time = STA - STD (in minutes)
-    var toMins  = parseInt(m[2].slice(0,2))*60 + parseInt(m[2].slice(2,4));
-    var ldgMins = parseInt(m[3].slice(0,2))*60 + parseInt(m[3].slice(2,4));
-    var block   = ldgMins - toMins;
+    var block = nlMins4(m[3]) - nlMins4(m[2]);
     if (block < 0) block += 1440; // midnight crossing
     sectors.push({ origin: origin, dest: dest, to: std, ldg: sta, block: block });
   }
