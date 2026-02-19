@@ -1701,7 +1701,7 @@ function nlParseRoster(raw) {
   // "C/T" → "C/I"  (Tesseract reads the I as T)
   text = text.replace(/\bC\s*\/\s*T\b/g, 'C/I');
   // "EW" misread as "=" or "EW" with leading punctuation
-  text = text.replace(/(?:^|\s)[=~]\s+(\d{4,5})/g, ' EW $1');
+  text = text.replace(/(?:^|\s)[=~]\s+(\d{3,5})/g, ' EW $1');
 
   // ── Report time: look for C/I ... <AIRPORT> <TIME> ──
   // Pattern: "C/I" then up to ~30 chars (skipping "Pick Up", extra tokens, etc.),
