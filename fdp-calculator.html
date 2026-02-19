@@ -1710,12 +1710,18 @@ function nlParseRoster(raw) {
   // Normalise: collapse all whitespace variants to single space, trim
   var text = raw.replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
 
+  // ── Fix common OCR misreads ──────────────────────────────────────
+  // "C/T" → "C/I"  (Tesseract reads the I as T)
+  text = text.replace(/\bC\s*\/\s*T\b/g, 'C/I');
+  // "EW" misread as "=" or "EW" with leading punctuation
+  text = text.replace(/(?:^|\s)[=~]\s+(\d{4,5})/g, ' EW $1');
+
   // ── Report time: look for C/I ... <AIRPORT> <TIME> ──
   // Pattern: "C/I" then up to ~30 chars (skipping "Pick Up", extra tokens, etc.),
   // then optional 3-letter airport, then 4-digit time
-  var ciMatch = text.match(/C\s*[\/\\|]\s*I\b.{0,30}?([A-Z]{3})\s+(\d{4})/);
+  var ciMatch = text.match(/C\s*[\/\\|]\s*I\b.{0,30}?([A-Z]{3})\s+(\d{4})/i);
   // Fallback: C/I followed directly by 4-digit time
-  if (!ciMatch) ciMatch = text.match(/C\s*[\/\\|]\s*I\s+(\d{4})/);
+  if (!ciMatch) ciMatch = text.match(/C\s*[\/\\|]\s*I\s+(\d{4})/i);
 
   var reportTime = null;
   if (ciMatch) {
@@ -1725,11 +1731,10 @@ function nlParseRoster(raw) {
   }
 
   // ── Sectors: find all EW blocks ──
-  // Pattern: EW <FLIGHTNO> <ORIGIN> <STD> <STA> <DEST> <STATUS?>
-  // EW may be OCR'd as "EW" or "EW " — flight number is 3-5 digits
+  // "EW" may be misread as "EW", "= " (equals), or other noise — pre-fixed above.
+  // Optional single-letter token (e.g. "R") between flight number and origin airport
   var sectors = [];
-  // Optional single-letter token (e.g. "R" for rotation) between flight number and origin airport
-  var sectorRe = /EW\s+\d{3,5}\s+(?:[A-Z]\s+)?([A-Z]{3})\s+(\d{4})\s+(\d{4})\s+([A-Z]{3})/g;
+  var sectorRe = /EW\s+\d{3,5}\s+(?:[A-Z]\s+)?([A-Z]{3})\s+(\d{4})\s+(\d{4})\s+([A-Z]{3})/gi;
   var m;
   while ((m = sectorRe.exec(text)) !== null) {
     var origin = m[1];
