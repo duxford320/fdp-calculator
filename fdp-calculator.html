@@ -6,6 +6,7 @@
   <meta name="theme-color" content="#0a0a0a" />
   <title>FDP Calculator</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
 
@@ -341,9 +342,155 @@
     }
 
     body.day #fdpTable thead tr { color: var(--text-dim) !important; }
+
+    /* ── NETLINE MODAL TABS ── */
+    .nl-tab-btn {
+      flex: 1;
+      padding: 8px 12px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: all 0.15s;
+      letter-spacing: 0.05em;
+    }
+    .nl-tab-btn:first-child { border-radius: 6px 0 0 6px; border-right: none; }
+    .nl-tab-btn:last-child  { border-radius: 0 6px 6px 0; }
+    .nl-tab-btn.active {
+      background: var(--primary);
+      color: #fff;
+      border-color: var(--primary);
+    }
+    body:not(.day) .nl-tab-btn.active { color: #000; }
+
+    .nl-drop-zone {
+      border: 2px dashed var(--border);
+      border-radius: 8px;
+      padding: 32px 16px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      background: var(--surface3);
+    }
+    .nl-drop-zone:hover, .nl-drop-zone.drag-over {
+      border-color: var(--primary);
+      background: rgba(29,78,216,0.04);
+    }
+    body:not(.day) .nl-drop-zone:hover,
+    body:not(.day) .nl-drop-zone.drag-over {
+      background: rgba(245,158,11,0.06);
+    }
+
+    .nl-preview-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 6px 0;
+      border-bottom: 1px solid var(--border2);
+      font-size: 0.85rem;
+    }
+    .nl-preview-row:last-child { border-bottom: none; }
+
+    .nl-apply-btn {
+      width: 100%;
+      padding: 11px;
+      background: var(--green);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 0.9rem;
+      letter-spacing: 0.08em;
+      cursor: pointer;
+      transition: opacity 0.15s;
+      margin-top: 12px;
+    }
+    .nl-apply-btn:hover { opacity: 0.88; }
+    body:not(.day) .nl-apply-btn { color: #000; }
+
+    #nlProgress {
+      font-size: 0.78rem;
+      color: var(--text-dim);
+      text-align: center;
+      margin-top: 10px;
+    }
+    .nl-ocr-bar-wrap {
+      background: var(--surface2);
+      border-radius: 4px;
+      height: 6px;
+      margin-top: 6px;
+      overflow: hidden;
+      display: none;
+    }
+    .nl-ocr-bar {
+      height: 100%;
+      background: var(--primary);
+      width: 0%;
+      transition: width 0.2s;
+      border-radius: 4px;
+    }
   </style>
 </head>
 <body class="p-4 md:p-6">
+
+<!-- ═══════════════════ MODAL — Netline Import ═══════════════════ -->
+<div id="nlModal" onclick="if(event.target===this)closeNetlineModal()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:1001;padding:16px;overflow-y:auto">
+  <div class="modal-box" style="max-width:520px">
+    <div class="modal-header">
+      <span class="label" style="font-size:0.8rem">&#x2B06; Import from Netline Roster</span>
+      <button class="modal-close" onclick="closeNetlineModal()">✕</button>
+    </div>
+    <div class="modal-body">
+
+      <!-- TABS -->
+      <div style="display:flex;margin-bottom:16px">
+        <button class="nl-tab-btn active" id="nlTabScreenshot" onclick="nlSwitchTab('screenshot')">Screenshot / Photo</button>
+        <button class="nl-tab-btn" id="nlTabPaste" onclick="nlSwitchTab('paste')">Paste Text</button>
+      </div>
+
+      <!-- ── TAB: Screenshot ── -->
+      <div id="nlPanelScreenshot">
+        <div class="nl-drop-zone" id="nlDropZone"
+          onclick="document.getElementById('nlFileInput').click()"
+          ondragover="event.preventDefault();this.classList.add('drag-over')"
+          ondragleave="this.classList.remove('drag-over')"
+          ondrop="nlHandleDrop(event)">
+          <div style="font-size:2rem;margin-bottom:8px">📷</div>
+          <div style="color:var(--text-dim);font-size:0.85rem">Drop screenshot here or tap to select</div>
+          <div style="color:var(--text-dim);font-size:0.72rem;margin-top:4px">PNG, JPG, BMP — Netline roster screenshot</div>
+        </div>
+        <input type="file" id="nlFileInput" accept="image/*" style="display:none" onchange="nlHandleFile(this.files[0])">
+        <div id="nlProgress" style="display:none"></div>
+        <div class="nl-ocr-bar-wrap" id="nlBarWrap"><div class="nl-ocr-bar" id="nlBar"></div></div>
+        <div id="nlOcrPreviewImg" style="margin-top:10px;text-align:center;display:none">
+          <img id="nlThumb" style="max-height:120px;border-radius:4px;border:1px solid var(--border)" />
+        </div>
+      </div>
+
+      <!-- ── TAB: Paste Text ── -->
+      <div id="nlPanelPaste" style="display:none">
+        <div class="label mb-2">Paste raw Netline roster text below</div>
+        <textarea id="nlPasteArea"
+          style="width:100%;height:120px;background:var(--surface3);border:1px solid var(--border);color:var(--text-main);
+                 font-family:'Share Tech Mono',monospace;font-size:0.78rem;padding:10px;border-radius:6px;
+                 outline:none;resize:vertical;line-height:1.6"
+          placeholder="Sun01    C/I    PRG   1435&#10;EW  4236   PRG   1535  1740  ARN   AB&#10;EW  4237   ARN   1825  2015  PRG   AB&#10;C/O  2045  PRG"></textarea>
+        <button class="nl-apply-btn" style="background:var(--primary);margin-top:8px" onclick="nlParseAndPreview(document.getElementById('nlPasteArea').value)">Parse Roster</button>
+      </div>
+
+      <!-- ── PARSE RESULT PREVIEW ── -->
+      <div id="nlPreviewSection" style="display:none;margin-top:16px">
+        <div class="modal-sub-head" style="margin-top:0">Parsed Data — verify before applying</div>
+        <div id="nlPreviewContent"></div>
+        <div id="nlParseWarn" style="display:none" class="warn-banner" style="margin-top:8px"></div>
+        <button class="nl-apply-btn" id="nlApplyBtn" onclick="nlApplyToCalculator()">Apply to Calculator</button>
+      </div>
+
+    </div>
+  </div>
+</div>
 
 <!-- ═══════════════════ MODAL — OM-A Reference Tables ═══════════════════ -->
 <div id="modal" onclick="if(event.target===this)closeModal()">
@@ -417,7 +564,12 @@
         <div class="clock-display mono" id="clock">--:--:-- Z</div>
         <div class="text-xs mt-1 val-dim" id="dateDisplay">---</div>
       </div>
-      <button id="themeBtn" onclick="toggleTheme()" title="Toggle Day / Night mode">🌙</button>
+      <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">
+        <button id="themeBtn" onclick="toggleTheme()" title="Toggle Day / Night mode">🌙</button>
+        <button class="ref-btn" onclick="openNetlineModal()" title="Import from Netline roster" style="white-space:nowrap;font-size:0.7rem;padding:4px 8px">
+          &#x2B06; Netline
+        </button>
+      </div>
     </div>
   </div>
 
@@ -526,6 +678,27 @@
     <div id="resultsContent">
       <div class="val-dim text-sm">Enter report time to calculate.</div>
     </div>
+    <div id="fdpCountdown" style="display:none"></div>
+  </div>
+
+  <!-- MINIMUM REST -->
+  <div class="card mb-4" id="restCard" style="display:none">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div class="section-head" style="margin-bottom:0;border:none">Minimum Rest &amp; Next Report</div>
+      <div id="restBaseToggle" style="display:none;gap:0">
+        <button id="restHomeBtn" onclick="setRestBase('home')"
+          style="padding:4px 10px;font-family:'Share Tech Mono',monospace;font-size:0.72rem;
+                 letter-spacing:0.06em;cursor:pointer;border-radius:4px 0 0 4px;
+                 border:1px solid var(--border);border-right:none;
+                 background:var(--primary);color:#000;transition:all 0.15s">HOME</button>
+        <button id="restAwayBtn" onclick="setRestBase('away')"
+          style="padding:4px 10px;font-family:'Share Tech Mono',monospace;font-size:0.72rem;
+                 letter-spacing:0.06em;cursor:pointer;border-radius:0 4px 4px 0;
+                 border:1px solid var(--border);
+                 background:var(--surface2);color:var(--text-dim);transition:all 0.15s">AWAY</button>
+      </div>
+    </div>
+    <div id="restContent"></div>
   </div>
 
   <!-- LATEST TAKEOFFS -->
@@ -560,7 +733,7 @@
   </div>
 
   <div class="text-xs val-dim text-center mb-4">
-    FDP Calculator v2.8 · For reference only · Always verify with official documentation<br/>
+    FDP Calculator v3.0 · For reference only · Always verify with official documentation<br/>
     Works offline after first load · PWA enabled
   </div>
 </div>
@@ -721,6 +894,47 @@ function formatTimeInput(input) {
 const DAYS   = ['SUN','MON','TUE','WED','THU','FRI','SAT'];
 const MONTHS = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
 
+// Saved by calculate(), read every second by updateCountdown()
+var fdpEndMinsSaved = null;
+
+function updateCountdown() {
+  var el = document.getElementById('fdpCountdown');
+  if (!el) return;
+  if (fdpEndMinsSaved === null) { el.style.display = 'none'; return; }
+
+  var now = new Date();
+  var nowMins = now.getUTCHours() * 60 + now.getUTCMinutes() + now.getUTCSeconds() / 60;
+
+  var remaining = fdpEndMinsSaved - nowMins;
+  // If remaining > 1440 it has crossed a day boundary
+  if (remaining > 1440) remaining -= 1440;
+
+  el.style.display = 'block';
+
+  if (remaining <= 0) {
+    el.innerHTML = '<div style="color:var(--red);font-size:0.85rem;text-align:center;padding:8px 0">FDP WINDOW EXPIRED</div>';
+    return;
+  }
+
+  var h = Math.floor(remaining / 60);
+  var m = Math.floor(remaining % 60);
+  var s = Math.floor((remaining * 60) % 60);
+  var fmt = String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+
+  var colour = 'var(--green)';
+  if (remaining <= 15) colour = 'var(--red)';
+  else if (remaining <= 30) colour = 'var(--primary)';
+
+  el.innerHTML =
+    '<div style="border-top:1px solid var(--text-result-border);padding:10px 0 4px">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center">' +
+        '<span class="label">FDP Remaining</span>' +
+        '<span style="font-size:1.4rem;color:' + colour + ';font-family:\'Share Tech Mono\',monospace;' +
+          'text-shadow:0 0 12px ' + colour + '33">' + fmt + '</span>' +
+      '</div>' +
+    '</div>';
+}
+
 function updateClock() {
   const n = new Date();
   const h = String(n.getUTCHours()).padStart(2,'0');
@@ -730,6 +944,7 @@ function updateClock() {
   document.getElementById('dateDisplay').textContent =
     DAYS[n.getUTCDay()] + ' ' + String(n.getUTCDate()).padStart(2,'0') + ' ' +
     MONTHS[n.getUTCMonth()] + ' ' + n.getUTCFullYear() + ' UTC';
+  updateCountdown();
 }
 setInterval(updateClock, 1000);
 updateClock();
@@ -875,13 +1090,15 @@ function onBlockChange(i) {
   var to  = parseHHMM(document.getElementById('actualTO' + i) ? document.getElementById('actualTO' + i).value : '');
   var ldg = parseHHMM(document.getElementById('actualLDG' + i) ? document.getElementById('actualLDG' + i).value : '');
   var blk = parseHHMM(document.getElementById('sector' + i).value);
-  if (to !== null && blk !== null) {
-    // T/O + Block → set LDG
-    var computed = to + blk;
-    document.getElementById('actualLDG' + i).value = minsToHHMM(computed);
+  // If actual T/O and LDG are both already set, don't overwrite them from block
+  if (to !== null && ldg !== null) {
+    // Both actuals present — just recalculate (block was already set by bidirectional logic)
+  } else if (to !== null && blk !== null) {
+    // T/O + Block → compute LDG
+    document.getElementById('actualLDG' + i).value = minsToHHMM(to + blk);
     cascadeActualTimes(i);
   } else if (ldg !== null && blk !== null) {
-    // LDG + Block → set T/O
+    // LDG + Block → compute T/O
     document.getElementById('actualTO' + i).value = minsToHHMM(ldg - blk);
   }
   calculate();
@@ -891,13 +1108,15 @@ function onActualTOChange(i) {
   var to  = parseHHMM(document.getElementById('actualTO' + i).value);
   var blk = parseHHMM(document.getElementById('sector' + i).value);
   var ldg = parseHHMM(document.getElementById('actualLDG' + i) ? document.getElementById('actualLDG' + i).value : '');
-  if (to !== null && blk !== null) {
-    var computed = to + blk;
-    document.getElementById('actualLDG' + i).value = minsToHHMM(computed);
+  if (to !== null && ldg !== null) {
+    // T/O + LDG both present → compute actual block time (highest priority)
+    var actualBlock = ldg - to;
+    if (actualBlock < 0) actualBlock += 1440;
+    document.getElementById('sector' + i).value = formatDuration(actualBlock);
+  } else if (to !== null && blk !== null) {
+    // T/O + Block → compute LDG
+    document.getElementById('actualLDG' + i).value = minsToHHMM(to + blk);
     cascadeActualTimes(i);
-  } else if (to !== null && ldg !== null) {
-    // T/O + LDG → set block
-    document.getElementById('sector' + i).value = formatDuration(ldg - to);
   }
   calculate();
 }
@@ -906,10 +1125,15 @@ function onActualLDGChange(i) {
   var ldg = parseHHMM(document.getElementById('actualLDG' + i).value);
   var blk = parseHHMM(document.getElementById('sector' + i).value);
   var to  = parseHHMM(document.getElementById('actualTO' + i) ? document.getElementById('actualTO' + i).value : '');
-  if (ldg !== null && blk !== null) {
+  if (ldg !== null && to !== null) {
+    // T/O + LDG → compute actual block time (highest priority)
+    var actualBlock = ldg - to;
+    // Handle midnight crossing: if negative, add 1440
+    if (actualBlock < 0) actualBlock += 1440;
+    document.getElementById('sector' + i).value = formatDuration(actualBlock);
+  } else if (ldg !== null && blk !== null) {
+    // LDG + Block → back-calculate T/O
     document.getElementById('actualTO' + i).value = minsToHHMM(ldg - blk);
-  } else if (ldg !== null && to !== null) {
-    document.getElementById('sector' + i).value = formatDuration(ldg - to);
   }
   cascadeActualTimes(i);
   calculate();
@@ -1038,6 +1262,76 @@ function onAirlineChange() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
+//  MINIMUM REST
+// ═══════════════════════════════════════════════════════════════════
+var restBase = 'home';   // 'home' | 'away'
+var _restMaxFDP = null;
+var _restFdpEnd = null;
+var _restAirline = null;
+
+function setRestBase(base) {
+  restBase = base;
+  var homeBtn = document.getElementById('restHomeBtn');
+  var awayBtn = document.getElementById('restAwayBtn');
+  if (homeBtn && awayBtn) {
+    homeBtn.style.background = base === 'home' ? 'var(--primary)' : 'var(--surface2)';
+    homeBtn.style.color      = base === 'home' ? '#000'           : 'var(--text-dim)';
+    awayBtn.style.background = base === 'away' ? 'var(--primary)' : 'var(--surface2)';
+    awayBtn.style.color      = base === 'away' ? '#000'           : 'var(--text-dim)';
+  }
+  if (_restMaxFDP !== null) renderRestCard(_restMaxFDP, _restFdpEnd, _restAirline);
+}
+
+function renderRestCard(maxFDP, fdpEndMins, airline) {
+  _restMaxFDP  = maxFDP;
+  _restFdpEnd  = fdpEndMins;
+  _restAirline = airline;
+
+  var isEW = (airline === 'EUROWINGS');
+
+  // Show/hide home-away toggle
+  var toggle = document.getElementById('restBaseToggle');
+  toggle.style.display = isEW ? 'flex' : 'none';
+
+  var minRestMins;
+  var regulation;
+  var noteExtra = '';
+
+  if (!isEW) {
+    // EASA ORO.FTL.235: rest ≥ max(preceding FDP, 10h)
+    minRestMins = Math.max(maxFDP, 600);
+    regulation  = 'EASA ORO.FTL.235 \u00b7 Rest \u2265 max(FDP, 10:00\u202fh)';
+  } else if (restBase === 'home') {
+    // EW OM-A 7.1.2.8.1: rest ≥ max(preceding duty, 12h)
+    minRestMins = Math.max(maxFDP, 720);
+    regulation  = 'EW OM-A 7.1.2.8.1 \u00b7 Home base \u00b7 Rest \u2265 max(FDP, 12:00\u202fh)';
+    noteExtra   = 'Derogation to away-base rest (10h) permitted if suitable accommodation provided.';
+  } else {
+    // EW OM-A 7.1.2.8.2: rest ≥ max(preceding duty, 10h)
+    minRestMins = Math.max(maxFDP, 600);
+    regulation  = 'EW OM-A 7.1.2.8.2 \u00b7 Away base \u00b7 Rest \u2265 max(FDP, 10:00\u202fh)';
+    noteExtra   = 'Includes 8h sleep opportunity. Travel time > 30\u202fmin extends rest \u2014 verify with OM-A.';
+  }
+
+  var earliestNextReport = fdpEndMins + minRestMins;
+
+  var rHtml = '';
+  rHtml += '<div class="result-row"><span class="label">FDP Duration (limit used)</span>' +
+    '<span class="val-amber">' + formatDuration(maxFDP) + '</span></div>';
+  rHtml += '<div class="result-row"><span class="label">Min Rest Required</span>' +
+    '<span class="val-green" style="font-size:1.1rem">' + formatDuration(minRestMins) + '</span></div>';
+  rHtml += '<div class="result-row"><span class="label">Earliest Next Report</span>' +
+    '<span class="val-green" style="font-size:1.1rem">' +
+    minsToHHMM(earliestNextReport) + ' UTC' + dayLabel(earliestNextReport) + '</span></div>';
+  rHtml += '<div class="ext-note" style="margin-top:6px">' + regulation + '.</div>';
+  if (noteExtra) {
+    rHtml += '<div class="ext-note">' + noteExtra + '</div>';
+  }
+
+  document.getElementById('restContent').innerHTML = rHtml;
+}
+
+// ═══════════════════════════════════════════════════════════════════
 //  MAIN CALCULATION ENGINE
 // ═══════════════════════════════════════════════════════════════════
 function calculate() {
@@ -1072,6 +1366,9 @@ function calculate() {
     resultsContent.innerHTML = '<div class="val-dim text-sm">Enter a valid report time (HH:MM UTC).</div>';
     takeoffCard.style.display = 'none';
     prohibitEl.style.display  = 'none';
+    fdpEndMinsSaved = null;
+    document.getElementById('fdpCountdown').style.display = 'none';
+    document.getElementById('restCard').style.display = 'none';
     return;
   }
 
@@ -1081,6 +1378,9 @@ function calculate() {
     resultsContent.innerHTML = '<div class="val-red text-sm">Could not find FDP limit for this report time.</div>';
     takeoffCard.style.display = 'none';
     prohibitEl.style.display = 'none';
+    fdpEndMinsSaved = null;
+    document.getElementById('fdpCountdown').style.display = 'none';
+    document.getElementById('restCard').style.display = 'none';
     return;
   }
 
@@ -1144,6 +1444,14 @@ function calculate() {
   const extTotal = opExtMins + (cdExtActive ? 120 : 0);
   const fdpEndMins         = reportMins + maxFDP;
   const latestOnBlocksMins = fdpEndMins - postFlight;
+
+  // ── Save FDP end for live countdown ────────────────────────────
+  fdpEndMinsSaved = fdpEndMins;
+  updateCountdown();
+
+  // ── Minimum Rest card ───────────────────────────────────────────
+  document.getElementById('restCard').style.display = 'block';
+  renderRestCard(maxFDP, fdpEndMins, airline);
 
   // ── Night Duty ──────────────────────────────────────────────────
   const nightDuty = isNightDuty(reportMins, fdpEndMins);
@@ -1260,6 +1568,255 @@ function calculate() {
   }
 
   takeoffContent.innerHTML = tHtml;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  NETLINE IMPORT
+// ═══════════════════════════════════════════════════════════════════
+
+// Parsed result stored here until user confirms Apply
+var nlParsed = null;
+
+function openNetlineModal() {
+  document.getElementById('nlModal').style.display = 'flex';
+  document.getElementById('nlModal').style.alignItems = 'flex-start';
+  document.getElementById('nlModal').style.justifyContent = 'center';
+  nlResetPreview();
+}
+function closeNetlineModal() {
+  document.getElementById('nlModal').style.display = 'none';
+}
+
+function nlSwitchTab(tab) {
+  var isScreenshot = tab === 'screenshot';
+  document.getElementById('nlPanelScreenshot').style.display = isScreenshot ? 'block' : 'none';
+  document.getElementById('nlPanelPaste').style.display      = isScreenshot ? 'none' : 'block';
+  document.getElementById('nlTabScreenshot').classList.toggle('active', isScreenshot);
+  document.getElementById('nlTabPaste').classList.toggle('active', !isScreenshot);
+  nlResetPreview();
+}
+
+function nlResetPreview() {
+  nlParsed = null;
+  document.getElementById('nlPreviewSection').style.display = 'none';
+  document.getElementById('nlProgress').style.display = 'none';
+  document.getElementById('nlBarWrap').style.display = 'none';
+  document.getElementById('nlOcrPreviewImg').style.display = 'none';
+  document.getElementById('nlPasteArea') && (document.getElementById('nlPasteArea').value = '');
+  document.getElementById('nlFileInput').value = '';
+  document.getElementById('nlDropZone').classList.remove('drag-over');
+}
+
+// ── File / Drop handlers ─────────────────────────────────────────────────────
+function nlHandleDrop(e) {
+  e.preventDefault();
+  document.getElementById('nlDropZone').classList.remove('drag-over');
+  var file = e.dataTransfer.files[0];
+  if (file && file.type.startsWith('image/')) nlHandleFile(file);
+}
+
+function nlHandleFile(file) {
+  if (!file) return;
+  // Show thumbnail
+  var reader = new FileReader();
+  reader.onload = function(ev) {
+    document.getElementById('nlThumb').src = ev.target.result;
+    document.getElementById('nlOcrPreviewImg').style.display = 'block';
+  };
+  reader.readAsDataURL(file);
+  nlRunOCR(file);
+}
+
+// ── Tesseract OCR ────────────────────────────────────────────────────────────
+function nlRunOCR(file) {
+  var progressEl = document.getElementById('nlProgress');
+  var barWrap    = document.getElementById('nlBarWrap');
+  var bar        = document.getElementById('nlBar');
+
+  progressEl.style.display = 'block';
+  progressEl.textContent   = 'Initialising OCR engine…';
+  barWrap.style.display    = 'block';
+  bar.style.width          = '0%';
+
+  Tesseract.recognize(file, 'eng', {
+    logger: function(m) {
+      if (m.status === 'recognizing text') {
+        var pct = Math.round(m.progress * 100);
+        bar.style.width = pct + '%';
+        progressEl.textContent = 'Reading text… ' + pct + '%';
+      } else if (m.status === 'loading tesseract core') {
+        progressEl.textContent = 'Loading OCR engine…';
+      } else if (m.status === 'initializing tesseract') {
+        progressEl.textContent = 'Initialising…';
+      } else if (m.status === 'loading language traineddata') {
+        progressEl.textContent = 'Loading language data…';
+      }
+    }
+  }).then(function(result) {
+    bar.style.width = '100%';
+    progressEl.textContent = 'OCR complete — parsing…';
+    setTimeout(function() {
+      barWrap.style.display = 'none';
+      progressEl.style.display = 'none';
+      nlParseAndPreview(result.data.text);
+    }, 400);
+  }).catch(function(err) {
+    progressEl.textContent = 'OCR error: ' + err.message;
+    bar.style.width = '0%';
+  });
+}
+
+// ── Parser ───────────────────────────────────────────────────────────────────
+// Anchors: C/I (report), EW (sector), C/O (end)
+// Times are 4-digit strings. Airports are 3 uppercase letters.
+// The raw text may have no newlines (all on one line) or may have them.
+// Strategy: normalise whitespace, then use regex to extract tokens.
+
+function nlFmt4(t) {
+  // "1435" → "14:35"
+  return t.slice(0,2) + ':' + t.slice(2,4);
+}
+
+function nlParseRoster(raw) {
+  // Normalise: collapse all whitespace variants to single space, trim
+  var text = raw.replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
+
+  // ── Report time: look for C/I ... <AIRPORT> <TIME> ──
+  // Pattern: "C/I" then optionally some chars, then 3-letter airport, then 4-digit time
+  var ciMatch = text.match(/C\s*[\/\\|]\s*I\s+(?:[A-Z]{3}\s+)?([A-Z]{3})\s+(\d{4})/);
+  // Fallback: C/I without airport
+  if (!ciMatch) ciMatch = text.match(/C\s*[\/\\|]\s*I\s+(\d{4})/);
+
+  var reportTime = null;
+  if (ciMatch) {
+    // Last capture group is always the time
+    var rawTime = ciMatch[ciMatch.length - 1];
+    reportTime = nlFmt4(rawTime);
+  }
+
+  // ── Sectors: find all EW blocks ──
+  // Pattern: EW <FLIGHTNO> <ORIGIN> <STD> <STA> <DEST> <STATUS?>
+  // EW may be OCR'd as "EW" or "EW " — flight number is 3-5 digits
+  var sectors = [];
+  var sectorRe = /EW\s+\d{3,5}\s+([A-Z]{3})\s+(\d{4})\s+(\d{4})\s+([A-Z]{3})/g;
+  var m;
+  while ((m = sectorRe.exec(text)) !== null) {
+    var origin = m[1];
+    var std    = nlFmt4(m[2]);  // scheduled/actual T/O
+    var sta    = nlFmt4(m[3]);  // scheduled/actual LDG
+    var dest   = m[4];
+    // Block time = STA - STD (in minutes)
+    var toMins  = parseInt(m[2].slice(0,2))*60 + parseInt(m[2].slice(2,4));
+    var ldgMins = parseInt(m[3].slice(0,2))*60 + parseInt(m[3].slice(2,4));
+    var block   = ldgMins - toMins;
+    if (block < 0) block += 1440; // midnight crossing
+    sectors.push({ origin: origin, dest: dest, to: std, ldg: sta, block: block });
+  }
+
+  if (!reportTime && sectors.length === 0) return null;
+
+  // ── Turnarounds between sectors ──
+  var turnarounds = [];
+  for (var i = 0; i < sectors.length - 1; i++) {
+    var ldg1 = parseHHMM(sectors[i].ldg);
+    var to2  = parseHHMM(sectors[i+1].to);
+    var ta   = to2 - ldg1;
+    if (ta < 0) ta += 1440;
+    turnarounds.push(ta);
+  }
+
+  return { reportTime: reportTime, sectors: sectors, turnarounds: turnarounds };
+}
+
+function nlParseAndPreview(raw) {
+  var result = nlParseRoster(raw);
+
+  if (!result || (!result.reportTime && result.sectors.length === 0)) {
+    document.getElementById('nlPreviewSection').style.display = 'block';
+    document.getElementById('nlPreviewContent').innerHTML =
+      '<div class="warn-banner">Could not find Netline data in this text.<br>' +
+      '<span style="font-size:0.78rem">Make sure the text contains C/I and EW flight lines.</span></div>';
+    document.getElementById('nlApplyBtn').style.display = 'none';
+    document.getElementById('nlParseWarn').style.display = 'none';
+    nlParsed = null;
+    return;
+  }
+
+  nlParsed = result;
+
+  // ── Build preview HTML ──
+  var html = '';
+
+  if (result.reportTime) {
+    html += '<div class="nl-preview-row"><span class="label">Report Time</span>' +
+      '<span class="val-amber">' + result.reportTime + ' UTC</span></div>';
+  }
+  html += '<div class="nl-preview-row"><span class="label">Sectors</span>' +
+    '<span class="val-amber">' + result.sectors.length + '</span></div>';
+
+  result.sectors.forEach(function(s, i) {
+    html += '<div class="nl-preview-row" style="flex-direction:column;align-items:flex-start;gap:4px">' +
+      '<span class="label">S' + (i+1) + ' — ' + s.origin + ' → ' + s.dest + '</span>' +
+      '<div style="display:flex;gap:16px;font-size:0.82rem">' +
+        '<span>T/O <span class="val-green">' + s.to + '</span></span>' +
+        '<span>LDG <span class="val-green">' + s.ldg + '</span></span>' +
+        '<span>Block <span class="val-amber">' + formatDuration(s.block) + '</span></span>' +
+      '</div>' +
+      (i < result.turnarounds.length
+        ? '<span style="font-size:0.72rem;color:var(--text-dim)">↳ Turnaround to S' + (i+2) + ': ' + result.turnarounds[i] + ' min</span>'
+        : '') +
+    '</div>';
+  });
+
+  document.getElementById('nlPreviewContent').innerHTML = html;
+
+  // Warn if report time missing
+  var warnEl = document.getElementById('nlParseWarn');
+  if (!result.reportTime) {
+    warnEl.style.display = 'block';
+    warnEl.textContent = 'Warning: Could not detect report time (C/I). You will need to enter it manually.';
+  } else {
+    warnEl.style.display = 'none';
+  }
+
+  document.getElementById('nlApplyBtn').style.display = 'block';
+  document.getElementById('nlPreviewSection').style.display = 'block';
+}
+
+// ── Apply parsed data to calculator ─────────────────────────────────────────
+function nlApplyToCalculator() {
+  if (!nlParsed) return;
+
+  // Set report time
+  if (nlParsed.reportTime) {
+    document.getElementById('reportTime').value = nlParsed.reportTime;
+  }
+
+  // Set sector count (triggers re-render of sector inputs)
+  document.getElementById('numSectors').value = nlParsed.sectors.length;
+  renderSectorInputs();
+
+  // Wait one tick for DOM to update, then fill sector fields
+  setTimeout(function() {
+    nlParsed.sectors.forEach(function(s, i) {
+      var blockEl = document.getElementById('sector' + i);
+      var toEl    = document.getElementById('actualTO' + i);
+      var ldgEl   = document.getElementById('actualLDG' + i);
+      if (blockEl) blockEl.value = formatDuration(s.block);
+      if (toEl)    toEl.value    = s.to;
+      if (ldgEl)   ldgEl.value   = s.ldg;
+    });
+
+    // Set per-sector turnarounds
+    nlParsed.turnarounds.forEach(function(ta, i) {
+      var taEl = document.getElementById('ta' + i);
+      if (taEl) taEl.value = ta;
+    });
+
+    // Trigger calculation
+    calculate();
+    closeNetlineModal();
+  }, 50);
 }
 
 // ═══════════════════════════════════════════════════════════════════
