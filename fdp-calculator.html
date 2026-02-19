@@ -1859,7 +1859,7 @@ function nlApplyToCalculator() {
 <script>
 if ('serviceWorker' in navigator) {
   const SW = `
-const CACHE = 'fdp-v2';
+const CACHE = 'fdp-v3';
 self.addEventListener('install', function(e) { self.skipWaiting(); });
 self.addEventListener('activate', function(e) {
   e.waitUntil(caches.keys().then(function(keys) {
