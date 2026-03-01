@@ -1998,11 +1998,14 @@ function nlApplyToCalculator() {
       if (ldgEl)   ldgEl.value   = s.ldg;
     });
 
-    // Set per-sector turnarounds
+    // Set per-sector turnarounds and sync global turnaround field to the first value
     nlParsed.turnarounds.forEach(function(ta, i) {
       var taEl = document.getElementById('ta' + i);
       if (taEl) taEl.value = ta;
     });
+    if (nlParsed.turnarounds.length > 0) {
+      document.getElementById('turnaround').value = nlParsed.turnarounds[0];
+    }
 
     // Trigger calculation
     calculate();
