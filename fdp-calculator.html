@@ -11,14 +11,19 @@
 
   <!-- Apple touch icon (iOS home screen): 180×180 PNG (data: URIs not supported by iOS Safari) -->
   <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+  <link rel="manifest" href="manifest.json">
 
   <!-- PWA manifest name -->
   <meta name="application-name" content="FDP Calc">
   <meta name="apple-mobile-web-app-title" content="FDP Calc">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <script src="https://cdn.tailwindcss.com/3.4.19"
+    integrity="sha384-9DKYCoc5B0cmJvPxHa+aIHOJFHyjdQ9bn4AgDH5/1Go640mbQoelnITZBrP+9fj1"
+    crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"
+    integrity="sha384-GJqSu7vueQ9qN0E9yLPb3Wtpd7OrgK8KmYzC8T1IysG1bcvxvIO4qtYR/D3A991F"
+    crossorigin="anonymous"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
 
@@ -930,18 +935,19 @@ var fdpEndMinsSaved   = null;
 var latestS1TOMins    = null;   // kept for backwards compat; first entry of latestTOArr
 var latestTOArr       = null;   // array of latest T/O mins per sector (null when not calculated)
 
+function computeRemainingMins(targetMins) {
+  var now = new Date();
+  var nowMins = now.getUTCHours() * 60 + now.getUTCMinutes() + now.getUTCSeconds() / 60;
+  var remaining = targetMins - nowMins;
+  return ((remaining % 1440) + 1440) % 1440;
+}
+
 function updateCountdown() {
   var el = document.getElementById('fdpCountdown');
   if (!el) return;
   if (fdpEndMinsSaved === null) { el.style.display = 'none'; return; }
 
-  var now = new Date();
-  var nowMins = now.getUTCHours() * 60 + now.getUTCMinutes() + now.getUTCSeconds() / 60;
-
-  var remaining = fdpEndMinsSaved - nowMins;
-  // If remaining > 1440 it has crossed a day boundary
-  if (remaining > 1440) remaining -= 1440;
-
+  var remaining = computeRemainingMins(fdpEndMinsSaved);
   el.style.display = 'block';
 
   if (remaining <= 0) {
@@ -989,11 +995,7 @@ function updateTOCountdown() {
   // All sectors have actual T/O entered — nothing to count down to
   if (targetIdx === -1) { el.style.display = 'none'; return; }
 
-  var now = new Date();
-  var nowMins = now.getUTCHours() * 60 + now.getUTCMinutes() + now.getUTCSeconds() / 60;
-  var remaining = targetMins - nowMins;
-  if (remaining > 1440) remaining -= 1440;
-
+  var remaining = computeRemainingMins(targetMins);
   el.style.display = 'block';
   var label = 'S' + (targetIdx + 1) + ' Takeoff In';
 
@@ -1681,6 +1683,7 @@ function calculate() {
 
 // Parsed result stored here until user confirms Apply
 var nlParsed = null;
+var nlOcrWorker = null;
 
 function openNetlineModal() {
   document.getElementById('nlModal').style.display = 'flex';
@@ -1689,6 +1692,7 @@ function openNetlineModal() {
   nlResetPreview();
 }
 function closeNetlineModal() {
+  if (nlOcrWorker) { try { nlOcrWorker.terminate(); } catch(e) {} nlOcrWorker = null; }
   document.getElementById('nlModal').style.display = 'none';
 }
 
@@ -1742,7 +1746,10 @@ function nlHandleFile(file) {
 }
 
 // ── Tesseract OCR ────────────────────────────────────────────────────────────
-function nlRunOCR(file) {
+async function nlRunOCR(file) {
+  // Terminate any in-flight worker before starting a new one
+  if (nlOcrWorker) { try { nlOcrWorker.terminate(); } catch(e) {} nlOcrWorker = null; }
+
   var progressEl = document.getElementById('nlProgress');
   var barWrap    = document.getElementById('nlBarWrap');
   var bar        = document.getElementById('nlBar');
@@ -1757,16 +1764,22 @@ function nlRunOCR(file) {
     'initializing tesseract':    'Initialising…',
     'loading language traineddata': 'Loading language data…'
   };
-  Tesseract.recognize(file, 'eng', {
-    logger: function(m) {
-      if (m.status === 'recognizing text') {
-        bar.style.width = Math.round(m.progress * 100) + '%';
-        progressEl.textContent = 'Reading text… ' + Math.round(m.progress * 100) + '%';
-      } else if (ocrStatusMsg[m.status]) {
-        progressEl.textContent = ocrStatusMsg[m.status];
+
+  try {
+    nlOcrWorker = await Tesseract.createWorker('eng', 1, {
+      logger: function(m) {
+        if (m.status === 'recognizing text') {
+          bar.style.width = Math.round(m.progress * 100) + '%';
+          progressEl.textContent = 'Reading text… ' + Math.round(m.progress * 100) + '%';
+        } else if (ocrStatusMsg[m.status]) {
+          progressEl.textContent = ocrStatusMsg[m.status];
+        }
       }
-    }
-  }).then(function(result) {
+    });
+    var result = await nlOcrWorker.recognize(file);
+    await nlOcrWorker.terminate();
+    nlOcrWorker = null;
+
     bar.style.width = '100%';
     progressEl.textContent = 'OCR complete — parsing…';
     setTimeout(function() {
@@ -1774,10 +1787,11 @@ function nlRunOCR(file) {
       progressEl.style.display = 'none';
       nlParseAndPreview(result.data.text);
     }, 400);
-  }).catch(function(err) {
-    progressEl.textContent = 'OCR error: ' + err.message;
+  } catch(err) {
+    nlOcrWorker = null;
+    progressEl.textContent = 'OCR error: ' + (err && err.message ? err.message : err);
     bar.style.width = '0%';
-  });
+  }
 }
 
 // ── Parser ───────────────────────────────────────────────────────────────────
@@ -1786,7 +1800,12 @@ function nlRunOCR(file) {
 // The raw text may have no newlines (all on one line) or may have them.
 // Strategy: normalise whitespace, then use regex to extract tokens.
 
-function nlFmt4(t) { return t.slice(0,2) + ':' + t.slice(2,4); }
+function nlFmt4(t) {
+  var h = parseInt(t.slice(0,2), 10);
+  var m = parseInt(t.slice(2,4), 10);
+  if (h > 23 || m > 59) return '??:??';
+  return String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0');
+}
 function nlMins4(t) { return parseInt(t.slice(0,2)) * 60 + parseInt(t.slice(2,4)); }
 
 function nlParseRoster(raw) {
@@ -1955,30 +1974,7 @@ function nlApplyToCalculator() {
 <!-- ═══════════════════════════ SERVICE WORKER ══════════════════════════ -->
 <script>
 if ('serviceWorker' in navigator) {
-  const SW = `
-const CACHE = 'fdp-v7';
-self.addEventListener('install', function(e) { self.skipWaiting(); });
-self.addEventListener('activate', function(e) {
-  e.waitUntil(caches.keys().then(function(keys) {
-    return Promise.all(keys.filter(function(k){ return k !== CACHE; }).map(function(k){ return caches.delete(k); }));
-  }));
-  self.clients.claim();
-});
-self.addEventListener('fetch', function(e) {
-  e.respondWith(caches.match(e.request).then(function(cached) {
-    if (cached) return cached;
-    return fetch(e.request).then(function(r) {
-      var c = r.clone();
-      caches.open(CACHE).then(function(cache) { cache.put(e.request, c); });
-      return r;
-    });
-  }));
-});
-  `;
-  try {
-    const blob = new Blob([SW], { type: 'application/javascript' });
-    navigator.serviceWorker.register(URL.createObjectURL(blob)).catch(function(){});
-  } catch(e) {}
+  navigator.serviceWorker.register('./sw.js').catch(function(){});
 }
 </script>
 </body>

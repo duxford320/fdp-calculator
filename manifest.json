@@ -1,0 +1,11 @@
+{
+  "name": "FDP Calculator",
+  "short_name": "FDP Calc",
+  "start_url": "./fdp-calculator.html",
+  "display": "standalone",
+  "background_color": "#0a0a0a",
+  "theme_color": "#0a0a0a",
+  "icons": [
+    { "src": "apple-touch-icon.png", "sizes": "180x180", "type": "image/png" }
+  ]
+}
