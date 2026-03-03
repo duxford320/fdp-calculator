@@ -469,10 +469,11 @@
       <div id="nlPanelPaste" style="display:block">
         <div class="label mb-2">Paste raw Netline roster text below</div>
         <textarea id="nlPasteArea"
-          style="width:100%;height:120px;background:var(--surface3);border:1px solid var(--border);color:var(--text-main);
-                 font-family:'Share Tech Mono',monospace;font-size:0.78rem;padding:10px;border-radius:6px;
-                 outline:none;resize:vertical;line-height:1.6"
-          placeholder="Sun01    C/I    PRG   1435&#10;EW  4236   PRG   1535  1740  ARN   AB&#10;EW  4237   ARN   1825  2015  PRG   AB&#10;C/O  2045  PRG"></textarea>
+          style="width:100%;height:140px;background:var(--surface3);border:1px solid var(--border);color:var(--text-main);
+                 font-size:0.9rem;padding:10px;border-radius:6px;outline:none;resize:vertical;line-height:1.5;
+                 -webkit-user-select:text;user-select:text"
+          autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+          placeholder="Paste your roster text here…"></textarea>
         <button class="nl-apply-btn" style="background:var(--primary);margin-top:8px" onclick="nlParseAndPreview(document.getElementById('nlPasteArea').value)">Parse Roster</button>
       </div>
 
@@ -1472,6 +1473,7 @@ function calculate() {
     latestTOArr     = null;
     document.getElementById('fdpCountdown').style.display = 'none';
     document.getElementById('restCard').style.display = 'none';
+    saveState();
     return;
   }
 
@@ -1486,6 +1488,7 @@ function calculate() {
     latestTOArr     = null;
     document.getElementById('fdpCountdown').style.display = 'none';
     document.getElementById('restCard').style.display = 'none';
+    saveState();
     return;
   }
 
@@ -1563,8 +1566,18 @@ function calculate() {
   updateCountdown();
 
   // ── Minimum Rest card ───────────────────────────────────────────
+  // Use actual last-sector landing if available, else fall back to FDP end limit
+  var actualLastLdg = null;
+  for (var si = numSectors - 1; si >= 0; si--) {
+    var ldgEl2 = document.getElementById('actualLDG' + si);
+    if (ldgEl2 && ldgEl2.value) {
+      var parsed = parseHHMM(ldgEl2.value);
+      if (parsed !== null) { actualLastLdg = parsed; break; }
+    }
+  }
+  var dutyEndForRest = (actualLastLdg !== null) ? actualLastLdg + postFlight : fdpEndMins;
   document.getElementById('restCard').style.display = 'block';
-  renderRestCard(maxFDP, fdpEndMins, airline);
+  renderRestCard(maxFDP, dutyEndForRest, airline);
 
   // ── Night Duty ──────────────────────────────────────────────────
   const nightDuty = isNightDuty(reportMins, fdpEndMins);
@@ -1686,6 +1699,7 @@ function calculate() {
   }
 
   takeoffContent.innerHTML = tHtml;
+  saveState();
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -2014,6 +2028,78 @@ function nlApplyToCalculator() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
+//  STATE PERSISTENCE
+// ═══════════════════════════════════════════════════════════════════
+var STATE_KEY = 'fdp-state-v1';
+
+function saveState() {
+  try {
+    var n = getNumSectors();
+    var sectors = [];
+    for (var i = 0; i < n; i++) {
+      sectors.push({
+        block:  (document.getElementById('sector'  + i) || {}).value || '',
+        to:     (document.getElementById('actualTO' + i) || {}).value || '',
+        ldg:    (document.getElementById('actualLDG'+ i) || {}).value || '',
+        ta:     i < n - 1 ? ((document.getElementById('ta' + i) || {}).value || '') : ''
+      });
+    }
+    var airline = document.querySelector('input[name="airline"]:checked');
+    var state = {
+      reportTime:  document.getElementById('reportTime').value,
+      numSectors:  document.getElementById('numSectors').value,
+      turnaround:  document.getElementById('turnaround').value,
+      postFlight:  document.getElementById('postFlight').value,
+      preDep:      document.getElementById('preDep').value,
+      airline:     airline ? airline.value : 'EUROWINGS',
+      opExt:       document.getElementById('opExt').checked,
+      cdExt:       document.getElementById('cdExt') ? document.getElementById('cdExt').checked : false,
+      restBase:    restBase,
+      sectors:     sectors
+    };
+    localStorage.setItem(STATE_KEY, JSON.stringify(state));
+  } catch(e) {}
+}
+
+function loadState() {
+  try {
+    var raw = localStorage.getItem(STATE_KEY);
+    if (!raw) return false;
+    var s = JSON.parse(raw);
+
+    if (s.reportTime)  document.getElementById('reportTime').value  = s.reportTime;
+    if (s.numSectors)  document.getElementById('numSectors').value  = s.numSectors;
+    if (s.turnaround)  document.getElementById('turnaround').value  = s.turnaround;
+    if (s.postFlight)  document.getElementById('postFlight').value  = s.postFlight;
+    if (s.preDep)      document.getElementById('preDep').value      = s.preDep;
+    if (s.airline) {
+      var rb = document.querySelector('input[name="airline"][value="' + s.airline + '"]');
+      if (rb) rb.checked = true;
+    }
+    if (s.opExt !== undefined) document.getElementById('opExt').checked = s.opExt;
+    var cdEl = document.getElementById('cdExt');
+    if (cdEl && s.cdExt !== undefined) cdEl.checked = s.cdExt;
+    if (s.restBase) setRestBase(s.restBase);
+
+    // Render sector inputs first with the restored count, then fill values
+    renderSectorInputs();
+    if (s.sectors && s.sectors.length) {
+      s.sectors.forEach(function(sec, i) {
+        var blockEl = document.getElementById('sector'   + i);
+        var toEl    = document.getElementById('actualTO' + i);
+        var ldgEl   = document.getElementById('actualLDG'+ i);
+        var taEl    = document.getElementById('ta'       + i);
+        if (blockEl && sec.block) blockEl.value = sec.block;
+        if (toEl    && sec.to)    toEl.value    = sec.to;
+        if (ldgEl   && sec.ldg)   ldgEl.value   = sec.ldg;
+        if (taEl    && sec.ta)    taEl.value     = sec.ta;
+      });
+    }
+    return true;
+  } catch(e) { return false; }
+}
+
+// ═══════════════════════════════════════════════════════════════════
 //  INITIALISE
 // ═══════════════════════════════════════════════════════════════════
 (function init() {
@@ -2024,7 +2110,7 @@ function nlApplyToCalculator() {
 
   buildModalBaseTable();
   buildModalExtTable();
-  renderSectorInputs();
+  if (!loadState()) renderSectorInputs();
   renderFDPTable();
   calculate();
 })();
