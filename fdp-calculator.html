@@ -675,6 +675,18 @@
         </div>
       </div>
     </div>
+    <div style="display:flex;gap:8px;margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+      <button onclick="loadState();calculate()"
+        style="flex:1;padding:8px;background:var(--surface3);border:1px solid var(--border2);border-radius:6px;
+               color:var(--text-main);font-size:0.8rem;cursor:pointer">
+        ↺ Reload Last
+      </button>
+      <button onclick="resetToDefaults()"
+        style="flex:1;padding:8px;background:var(--surface3);border:1px solid var(--border2);border-radius:6px;
+               color:var(--text-dim);font-size:0.8rem;cursor:pointer">
+        ✕ Reset
+      </button>
+    </div>
   </div>
 
   <!-- SECTOR BLOCK TIMES -->
@@ -1367,9 +1379,10 @@ function onAirlineChange() {
 //  MINIMUM REST
 // ═══════════════════════════════════════════════════════════════════
 var restBase = 'home';   // 'home' | 'away'
-var _restMaxFDP = null;
-var _restFdpEnd = null;
-var _restAirline = null;
+var _restMaxFDP    = null;
+var _restFdpEnd    = null;
+var _restAirline   = null;
+var _restReportMins = null;
 
 function setRestBase(base) {
   restBase = base;
@@ -1381,13 +1394,14 @@ function setRestBase(base) {
     awayBtn.style.background = base === 'away' ? 'var(--primary)' : 'var(--surface2)';
     awayBtn.style.color      = base === 'away' ? '#000'           : 'var(--text-dim)';
   }
-  if (_restMaxFDP !== null) renderRestCard(_restMaxFDP, _restFdpEnd, _restAirline);
+  if (_restMaxFDP !== null) renderRestCard(_restMaxFDP, _restFdpEnd, _restAirline, _restReportMins);
 }
 
-function renderRestCard(maxFDP, fdpEndMins, airline) {
-  _restMaxFDP  = maxFDP;
-  _restFdpEnd  = fdpEndMins;
-  _restAirline = airline;
+function renderRestCard(maxFDP, dutyEndMins, airline, reportMins) {
+  _restMaxFDP     = maxFDP;
+  _restFdpEnd     = dutyEndMins;
+  _restAirline    = airline;
+  _restReportMins = reportMins;
 
   var isEW = (airline === 'EUROWINGS');
 
@@ -1395,31 +1409,35 @@ function renderRestCard(maxFDP, fdpEndMins, airline) {
   var toggle = document.getElementById('restBaseToggle');
   toggle.style.display = isEW ? 'flex' : 'none';
 
+  // Actual FDP duration = from report to duty end (actual LDG + post-flight, or FDP limit)
+  // Rest minimum is compared against the *actual* preceding FDP, not the table limit.
+  var actualFdpDuration = (reportMins != null) ? (dutyEndMins - reportMins) : maxFDP;
+
   var minRestMins;
   var regulation;
   var noteExtra = '';
 
   if (!isEW) {
     // EASA ORO.FTL.235: rest ≥ max(preceding FDP, 10h)
-    minRestMins = Math.max(maxFDP, 600);
+    minRestMins = Math.max(actualFdpDuration, 600);
     regulation  = 'EASA ORO.FTL.235 \u00b7 Rest \u2265 max(FDP, 10:00\u202fh)';
   } else if (restBase === 'home') {
-    // EW OM-A 7.1.2.8.1: rest ≥ max(preceding duty, 12h)
-    minRestMins = Math.max(maxFDP, 720);
+    // EW OM-A 7.1.2.8.1: rest ≥ max(preceding FDP, 12h)
+    minRestMins = Math.max(actualFdpDuration, 720);
     regulation  = 'EW OM-A 7.1.2.8.1 \u00b7 Home base \u00b7 Rest \u2265 max(FDP, 12:00\u202fh)';
     noteExtra   = 'Derogation to away-base rest (10h) permitted if suitable accommodation provided.';
   } else {
-    // EW OM-A 7.1.2.8.2: rest ≥ max(preceding duty, 10h)
-    minRestMins = Math.max(maxFDP, 600);
+    // EW OM-A 7.1.2.8.2: rest ≥ max(preceding FDP, 10h)
+    minRestMins = Math.max(actualFdpDuration, 600);
     regulation  = 'EW OM-A 7.1.2.8.2 \u00b7 Away base \u00b7 Rest \u2265 max(FDP, 10:00\u202fh)';
     noteExtra   = 'Includes 8h sleep opportunity. Travel time > 30\u202fmin extends rest \u2014 verify with OM-A.';
   }
 
-  var earliestNextReport = fdpEndMins + minRestMins;
+  var earliestNextReport = dutyEndMins + minRestMins;
 
   var rHtml = '';
-  rHtml += '<div class="result-row"><span class="label">FDP Duration (limit used)</span>' +
-    '<span class="val-amber">' + formatDuration(maxFDP) + '</span></div>';
+  rHtml += '<div class="result-row"><span class="label">FDP Duration (actual)</span>' +
+    '<span class="val-amber">' + formatDuration(actualFdpDuration) + '</span></div>';
   rHtml += '<div class="result-row"><span class="label">Min Rest Required</span>' +
     '<span class="val-green" style="font-size:1.1rem">' + formatDuration(minRestMins) + '</span></div>';
   rHtml += '<div class="result-row"><span class="label">Earliest Next Report</span>' +
@@ -1577,7 +1595,7 @@ function calculate() {
   }
   var dutyEndForRest = (actualLastLdg !== null) ? actualLastLdg + postFlight : fdpEndMins;
   document.getElementById('restCard').style.display = 'block';
-  renderRestCard(maxFDP, dutyEndForRest, airline);
+  renderRestCard(maxFDP, dutyEndForRest, airline, reportMins);
 
   // ── Night Duty ──────────────────────────────────────────────────
   const nightDuty = isNightDuty(reportMins, fdpEndMins);
@@ -2059,6 +2077,23 @@ function saveState() {
     };
     localStorage.setItem(STATE_KEY, JSON.stringify(state));
   } catch(e) {}
+}
+
+function resetToDefaults() {
+  try { localStorage.removeItem(STATE_KEY); } catch(e) {}
+  document.getElementById('reportTime').value  = '';
+  document.getElementById('numSectors').value  = '4';
+  document.getElementById('turnaround').value  = '35';
+  document.getElementById('postFlight').value  = '30';
+  document.getElementById('preDep').value      = '60';
+  var ew = document.querySelector('input[name="airline"][value="EUROWINGS"]');
+  if (ew) ew.checked = true;
+  document.getElementById('opExt').checked = false;
+  var cdEl = document.getElementById('cdExt');
+  if (cdEl) cdEl.checked = false;
+  setRestBase('home');
+  renderSectorInputs();
+  calculate();
 }
 
 function loadState() {
