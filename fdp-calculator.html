@@ -943,8 +943,7 @@ const MONTHS = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV
 
 // Saved by calculate(), read every second by updateCountdown() / updateTOCountdown()
 var fdpEndMinsSaved   = null;
-var latestS1TOMins    = null;   // kept for backwards compat; first entry of latestTOArr
-var latestTOArr       = null;   // array of latest T/O mins per sector (null when not calculated)
+var latestTOArr = null;   // array of latest T/O mins per sector (null when not calculated)
 
 function computeRemainingMins(targetMins) {
   var now = new Date();
@@ -1191,8 +1190,13 @@ function onTurnaroundChange() {
   var n = getNumSectors();
   for (var i = 0; i < n - 1; i++) {
     var taInp = document.getElementById('ta' + i);
-    if (taInp) taInp.value = newTA;
+    // Only update inputs that still hold the previous global default (not individually edited)
+    if (taInp && parseInt(taInp.value) !== newTA) {
+      var prev = parseInt(document.getElementById('turnaround')._prevTA) || 35;
+      if (parseInt(taInp.value) === prev) taInp.value = newTA;
+    }
   }
+  document.getElementById('turnaround')._prevTA = newTA;
   calculate();
 }
 
@@ -1395,6 +1399,7 @@ function setRestBase(base) {
     awayBtn.style.color      = base === 'away' ? '#000'           : 'var(--text-dim)';
   }
   if (_restMaxFDP !== null) renderRestCard(_restMaxFDP, _restFdpEnd, _restAirline, _restReportMins);
+  saveState();
 }
 
 function renderRestCard(maxFDP, dutyEndMins, airline, reportMins) {
@@ -1487,7 +1492,6 @@ function calculate() {
     takeoffCard.style.display = 'none';
     prohibitEl.style.display  = 'none';
     fdpEndMinsSaved = null;
-    latestS1TOMins  = null;
     latestTOArr     = null;
     document.getElementById('fdpCountdown').style.display = 'none';
     document.getElementById('restCard').style.display = 'none';
@@ -1502,7 +1506,6 @@ function calculate() {
     takeoffCard.style.display = 'none';
     prohibitEl.style.display = 'none';
     fdpEndMinsSaved = null;
-    latestS1TOMins  = null;
     latestTOArr     = null;
     document.getElementById('fdpCountdown').style.display = 'none';
     document.getElementById('restCard').style.display = 'none';
@@ -1551,13 +1554,12 @@ function calculate() {
 
   let maxFDP;
   if (airline === 'EUROWINGS') {
-    // EW: ewExtendedFDP is the hard ceiling from the OM-A table.
-    // Neither Op Ext alone nor CD alone nor both combined can exceed it.
-    // CD on top of base is still capped at ewExtendedFDP.
-    const ceiling = ewExtendedFDP !== null ? ewExtendedFDP : baseFDP;
-    const uncapped = baseFDP + (opExtActive ? (ewExtendedFDP !== null ? ewExtendedFDP - baseFDP : 0) : 0)
-                             + (cdExtActive ? 120 : 0);
-    maxFDP = Math.min(uncapped, ceiling);
+    // EW: Op Ext uses the OM-A table ceiling. CD (+2h) is independent and
+    // is NOT capped by ewExtendedFDP — it can apply even when no Op Ext row
+    // exists (e.g. 6 sectors) and adds on top of whatever Op Ext gives.
+    const opExtAdd = opExtActive && ewExtendedFDP !== null ? ewExtendedFDP - baseFDP : 0;
+    const cdAdd    = cdExtActive ? 120 : 0;
+    maxFDP = baseFDP + opExtAdd + cdAdd;
   } else {
     // EASA: flat +1h op ext, +2h CD, no hard ceiling
     maxFDP = baseFDP + (opExtActive ? 60 : 0) + (cdExtActive ? 120 : 0);
@@ -1593,6 +1595,8 @@ function calculate() {
       if (parsed !== null) { actualLastLdg = parsed; break; }
     }
   }
+  // Adjust for midnight crossing: if actual LDG is before report time, it's next day
+  if (actualLastLdg !== null && actualLastLdg < reportMins) actualLastLdg += 1440;
   var dutyEndForRest = (actualLastLdg !== null) ? actualLastLdg + postFlight : fdpEndMins;
   document.getElementById('restCard').style.display = 'block';
   renderRestCard(maxFDP, dutyEndForRest, airline, reportMins);
@@ -1667,9 +1671,9 @@ function calculate() {
   // ── Latest Takeoff (chain backwards) ───────────────────────────
   if (!allSectorsEntered) {
     takeoffCard.style.display = 'none';
-    latestS1TOMins = null;
     latestTOArr    = null;
     resultsContent.innerHTML += '<div class="text-xs val-dim mt-3 pt-3" style="border-top:1px solid var(--text-result-border)">Enter all sector block times above to see Latest Takeoff Times.</div>';
+    saveState();
     return;
   }
 
@@ -1686,8 +1690,7 @@ function calculate() {
     latestTakeoffs[i] = latestOnBlocks[i]     - sectorTimes[i];
   }
 
-  latestS1TOMins = latestTakeoffs[0];
-  latestTOArr    = latestTakeoffs.slice();
+  latestTOArr = latestTakeoffs.slice();
   takeoffCard.style.display = 'block';
   let tHtml = '';
 
@@ -2109,7 +2112,7 @@ function loadState() {
     if (s.preDep)      document.getElementById('preDep').value      = s.preDep;
     if (s.airline) {
       var rb = document.querySelector('input[name="airline"][value="' + s.airline + '"]');
-      if (rb) rb.checked = true;
+      if (rb) { rb.checked = true; onAirlineChange(); }
     }
     if (s.opExt !== undefined) document.getElementById('opExt').checked = s.opExt;
     var cdEl = document.getElementById('cdExt');
@@ -2140,8 +2143,8 @@ function loadState() {
 (function init() {
   // Restore theme
   try {
-    applyTheme(localStorage.getItem('fdp-theme') === 'night' ? 'night' : 'day');
-  } catch(e) { applyTheme('day'); }
+    applyTheme(localStorage.getItem('fdp-theme') === 'day' ? 'day' : 'night');
+  } catch(e) { applyTheme('night'); }
 
   buildModalBaseTable();
   buildModalExtTable();
