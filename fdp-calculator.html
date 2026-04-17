@@ -664,13 +664,13 @@
     </div>
     <div class="grid grid-cols-2 gap-4">
       <div>
-        <div class="label mb-1 tooltip" data-tip="Report time + this value = Standard S1 departure (editable for delays)">Pre-Departure Time (mins)</div>
+        <div class="label mb-1 tooltip" data-tip="Used to estimate S1 departure when no actual T/O entered. Ignored once actual S1 T/O is filled in above.">Pre-Dep Offset (mins)</div>
         <input type="number" id="preDep" min="0" max="240" value="60"
           class="w-full" oninput="calculate()" />
       </div>
       <div style="display:flex;align-items:flex-end;padding-bottom:2px">
         <div>
-          <div class="label mb-1">Standard S1 Departure</div>
+          <div class="label mb-1" id="s1DepLabel">Est. S1 Departure</div>
           <div id="stdS1Dep" style="font-size:1.1rem;color:var(--green);font-family:'Share Tech Mono',monospace">--:-- UTC</div>
         </div>
       </div>
@@ -1117,6 +1117,7 @@ function onSectorCountChange() { renderSectorInputs(); calculate(); }
 function renderSectorInputs() {
   const n = getNumSectors();
   const defaultTA = parseInt(document.getElementById('turnaround').value) || 35;
+  _prevGlobalTA = defaultTA;
   const container = document.getElementById('sectorInputs');
 
   // Preserve existing values
@@ -1185,18 +1186,18 @@ function renderSectorInputs() {
 // When the global turnaround default changes, push the new value to all
 // per-sector ta inputs that still hold the previous default (i.e. haven't
 // been individually edited). Then recalculate.
+var _prevGlobalTA = 35;
 function onTurnaroundChange() {
   var newTA = parseInt(document.getElementById('turnaround').value) || 35;
   var n = getNumSectors();
   for (var i = 0; i < n - 1; i++) {
     var taInp = document.getElementById('ta' + i);
-    // Only update inputs that still hold the previous global default (not individually edited)
-    if (taInp && parseInt(taInp.value) !== newTA) {
-      var prev = parseInt(document.getElementById('turnaround')._prevTA) || 35;
-      if (parseInt(taInp.value) === prev) taInp.value = newTA;
+    // Only update inputs that still hold the previous global default
+    if (taInp && parseInt(taInp.value) === _prevGlobalTA) {
+      taInp.value = newTA;
     }
   }
-  document.getElementById('turnaround')._prevTA = newTA;
+  _prevGlobalTA = newTA;
   calculate();
 }
 
@@ -1478,13 +1479,22 @@ function calculate() {
   // ── Validate report time ────────────────────────────────────────
   const reportMins = parseHHMM(reportStr);
 
-  // ── Standard S1 Departure display ───────────────────────────────
+  // ── S1 Departure display: actual if entered, else estimated ─────
   const preDep      = parseInt(document.getElementById('preDep').value) || 60;
   const stdS1DepEl  = document.getElementById('stdS1Dep');
+  const s1DepLabel  = document.getElementById('s1DepLabel');
+  const actualS1TO  = parseHHMM((document.getElementById('actualTO0') || {}).value || '');
   if (reportMins !== null) {
-    stdS1DepEl.textContent = minsToHHMM(reportMins + preDep) + ' UTC';
+    if (actualS1TO !== null) {
+      stdS1DepEl.textContent = minsToHHMM(actualS1TO) + ' UTC';
+      if (s1DepLabel) s1DepLabel.textContent = 'Actual S1 T/O';
+    } else {
+      stdS1DepEl.textContent = minsToHHMM(reportMins + preDep) + ' UTC';
+      if (s1DepLabel) s1DepLabel.textContent = 'Est. S1 Departure';
+    }
   } else {
     stdS1DepEl.textContent = '--:-- UTC';
+    if (s1DepLabel) s1DepLabel.textContent = 'Est. S1 Departure';
   }
 
   if (reportMins === null) {
@@ -1633,8 +1643,36 @@ function calculate() {
     html += '<div class="warn-banner mb-3">CAUTION: Operator Extension AND Commander\'s Discretion active. Verify compliance.</div>';
   }
 
+  // ── Actual FDP: from report to last known/projected landing ─────
+  // Priority: actual last LDG → projected (actualTO + block) → null
+  var actualFdpMins = null;
+  var actualFdpNote = '';
+  // Try last sector actual LDG first (already computed above as actualLastLdg)
+  if (actualLastLdg !== null) {
+    actualFdpMins = actualLastLdg - reportMins;
+    actualFdpNote = 'report → actual last LDG';
+  } else {
+    // Try projecting: find last sector where actualTO + block are both known
+    for (var fi = numSectors - 1; fi >= 0; fi--) {
+      var fTO  = parseHHMM((document.getElementById('actualTO'  + fi) || {}).value || '');
+      var fBlk = parseHHMM((document.getElementById('sector' + fi) || {}).value || '');
+      if (fTO !== null && fBlk !== null) {
+        var projLdg = fTO + fBlk;
+        if (projLdg < reportMins) projLdg += 1440;
+        actualFdpMins = projLdg - reportMins;
+        actualFdpNote = fi === numSectors - 1 ? 'report → projected last LDG' : 'report → projected S' + (fi+1) + ' LDG (partial)';
+        break;
+      }
+    }
+  }
+
   html += '<div class="result-row"><span class="label">Report Time</span><span class="val-amber text-lg">' + minsToHHMM(reportMins) + ' UTC</span></div>';
-  html += '<div class="result-row"><span class="label">Std S1 Departure</span><span class="val-green">' + minsToHHMM(reportMins + preDep) + ' UTC <span style="color:var(--text-dim);font-size:0.8em">(report + ' + preDep + ' min)</span></span></div>';
+  // S1 departure line: show actual if entered, else estimated
+  if (actualS1TO !== null) {
+    html += '<div class="result-row"><span class="label">Actual S1 T/O</span><span class="val-green">' + minsToHHMM(actualS1TO) + ' UTC <span style="color:var(--text-dim);font-size:0.8em">(pre-dep: ' + formatDuration(actualS1TO - reportMins) + ')</span></span></div>';
+  } else {
+    html += '<div class="result-row"><span class="label">Est. S1 Departure</span><span class="val-green">' + minsToHHMM(reportMins + preDep) + ' UTC <span style="color:var(--text-dim);font-size:0.8em">(report + ' + preDep + ' min)</span></span></div>';
+  }
   html += '<div class="result-row"><span class="label">Ruleset</span><span class="val-dim">' + FDP_DATA[airline].label + '</span></div>';
   html += '<div class="result-row"><span class="label">Sectors</span><span class="val-amber">' + numSectors + '</span></div>';
   html += '<div class="result-row"><span class="label">Base FDP Limit</span><span class="val-amber">' + formatDuration(baseFDP) + '</span></div>';
@@ -1648,6 +1686,14 @@ function calculate() {
     html += '<div class="result-row"><span class="label">Max FDP (with ext.)</span><span class="val-green" style="font-size:1.2rem">' + formatDuration(maxFDP) + '</span></div>';
   } else {
     html += '<div class="result-row"><span class="label">Max FDP</span><span class="val-green" style="font-size:1.2rem">' + formatDuration(maxFDP) + '</span></div>';
+  }
+
+  if (actualFdpMins !== null) {
+    var fdpUsedPct = Math.round(actualFdpMins / maxFDP * 100);
+    var fdpUsedColor = fdpUsedPct >= 100 ? 'var(--red)' : fdpUsedPct >= 85 ? 'var(--primary)' : 'var(--green)';
+    html += '<div class="result-row"><span class="label tooltip" data-tip="' + actualFdpNote + '">Actual FDP So Far</span>' +
+      '<span style="color:' + fdpUsedColor + ';font-size:1.1rem">' + formatDuration(actualFdpMins) +
+      ' <span style="color:var(--text-dim);font-size:0.78em">(' + fdpUsedPct + '% of max)</span></span></div>';
   }
 
   const fdpEndColor = nightDuty ? 'color:var(--red)' : 'color:var(--green)';
@@ -1841,9 +1887,10 @@ async function nlRunOCR(file) {
 }
 
 // ── Parser ───────────────────────────────────────────────────────────────────
-// Anchors: C/I (report), EW (sector), C/O (end)
-// Times are 4-digit strings. Airports are 3 uppercase letters.
-// The raw text may have no newlines (all on one line) or may have them.
+// Format 1 (OCR): C/I ... AIRPORT 4DIGIT / EW FLIGHTNO ORIG 4DIGIT 4DIGIT DEST
+// Format 2 (web/app): EW#### header + AIRPORT ddMMM HH:MM LT (HH:MM Z) lines
+//   - Triggered by Check-in, Check-out, or LT time pattern
+//   - Report time from Check-in line (optional — may be absent, user enters manually)
 // Strategy: normalise whitespace, then use regex to extract tokens.
 
 function nlFmt4(t) {
@@ -1868,19 +1915,23 @@ function nlParseRoster(raw) {
 
   // ══════════════════════════════════════════════════════════════════
   // FORMAT 2: Netline web/app export
-  // Check-in\n01Mar  15:35 LT  (14:35 Z)\nEW4236    320    AB    9HEUM\nPRG 01Mar  16:35 LT  (15:35 Z)\nARN 01Mar  18:40 LT  (17:40 Z)\n...
-  // Report time = UTC time in parens after "Check-in" line
+  // Triggered by: Check-in line OR Check-out line OR EW#### followed by airport+LT pattern
+  // Report time = UTC time in parens after "Check-in" line (optional — may be absent)
   // Each sector = EW#### line followed by: ORIG ddMMM HH:MM LT (HH:MM Z) / DEST ddMMM HH:MM LT (HH:MM Z)
+  // Header tokens after EW####: 1–3 misc tokens (aircraft type, variant, reg) — variable
   // ══════════════════════════════════════════════════════════════════
-  if (/Check-?in/i.test(text)) {
+  var isFmt2 = /Check-?in/i.test(text) ||
+               /Check-?out/i.test(text) ||
+               /EW\d+\s+\S+.*?[A-Z]{3}\s+\S+\s+\S+\s+LT\s+\(\d{1,2}:\d{2}\s*Z\)/i.test(text);
+  if (isFmt2) {
     var reportTime2 = null;
     var ciUTC = text.match(/Check-?in\b.{0,60}?\((\d{1,2}:\d{2})\s*Z\)/i);
     if (ciUTC) reportTime2 = ciUTC[1].length === 4 ? '0' + ciUTC[1] : ciUTC[1]; // ensure HH:MM
 
     var sectors2 = [];
-    // Each flight block: EW\d+ ... ORIG ... (HH:MM Z) ... DEST ... (HH:MM Z)
-    // Use multiline approach: find EW#### then grab next two airport+UTC pairs
-    var flightBlockRe = /EW\d+\s+\S+\s+\S+\s+\S+\s+([A-Z]{3})\s+\S+\s+\S+\s+LT\s+\((\d{1,2}:\d{2})\s*Z\)\s+([A-Z]{3})\s+\S+\s+\S+\s+LT\s+\((\d{1,2}:\d{2})\s*Z\)/gi;
+    // Each flight block: EW\d+ followed by 1-3 misc tokens then ORIG / DEST with LT times
+    // Use greedy \S+\s+ to skip variable number of header tokens, then match airport pattern
+    var flightBlockRe = /EW\d+(?:\s+\S+){1,4}\s+([A-Z]{3})\s+\S+\s+\S+\s+LT\s+\((\d{1,2}:\d{2})\s*Z\)\s+([A-Z]{3})\s+\S+\s+\S+\s+LT\s+\((\d{1,2}:\d{2})\s*Z\)/gi;
     var fb;
     while ((fb = flightBlockRe.exec(text)) !== null) {
       var orig  = fb[1];
