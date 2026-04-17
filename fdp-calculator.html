@@ -931,7 +931,10 @@ function dayLabel(mins) {
 
 function formatTimeInput(input) {
   let v = input.value.replace(/[^0-9:]/g, '');
-  if (v.length === 4 && !v.includes(':')) v = v.slice(0,2) + ':' + v.slice(2);
+  if (!v.includes(':')) {
+    if (v.length === 3) v = v.slice(0,1) + ':' + v.slice(1);       // 815 → 8:15
+    else if (v.length === 4) v = v.slice(0,2) + ':' + v.slice(2);  // 0815 → 08:15
+  }
   input.value = v;
 }
 
@@ -1675,7 +1678,6 @@ function calculate() {
   }
   html += '<div class="result-row"><span class="label">Ruleset</span><span class="val-dim">' + FDP_DATA[airline].label + '</span></div>';
   html += '<div class="result-row"><span class="label">Sectors</span><span class="val-amber">' + numSectors + '</span></div>';
-  html += '<div class="result-row"><span class="label">Base FDP Limit</span><span class="val-amber">' + formatDuration(baseFDP) + '</span></div>';
 
   if (extTotal > 0) {
     const extLabel = (opExtActive ? 'Op Ext +' + formatDuration(opExtMins) : '') +
@@ -1687,6 +1689,8 @@ function calculate() {
   } else {
     html += '<div class="result-row"><span class="label">Max FDP</span><span class="val-green" style="font-size:1.2rem">' + formatDuration(maxFDP) + '</span></div>';
   }
+
+  html += '<div class="result-row"><span class="label">Base FDP Limit</span><span class="val-dim">' + formatDuration(baseFDP) + '</span></div>';
 
   if (actualFdpMins !== null) {
     var fdpUsedPct = Math.round(actualFdpMins / maxFDP * 100);
