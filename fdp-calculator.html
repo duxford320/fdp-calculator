@@ -793,7 +793,7 @@
   </div>
 
   <div class="text-xs val-dim text-center mb-4">
-    FDP Calculator v4.6 · For reference only · Always verify with official documentation<br/>
+    FDP Calculator v4.7 · For reference only · Always verify with official documentation<br/>
     Works offline after first load · PWA enabled
   </div>
 </div>
@@ -842,8 +842,6 @@ const FDP_DATA = {
     //  Example: 12*60+30 = 12h30m = 750 minutes
     // ─────────────────────────────────────────────────────────────
     table: [
-      // ── 17:00–04:59 combined night/early-morning row (OM-A: 1700–0459) ──
-      ['00:00', '04:59', [ 11*60,      10*60+30,  10*60,     9*60+30,   9*60     ]],
       // ── Morning transition: 4 x 15-min bands (EW OM-A exact values) ──
       ['05:00', '05:14', [ 12*60,      11*60+30,  11*60,     10*60+30,  10*60    ]],
       ['05:15', '05:29', [ 12*60+15,   11*60+45,  11*60+15,  10*60+45,  10*60+15 ]],
@@ -858,7 +856,10 @@ const FDP_DATA = {
       ['15:30', '15:59', [ 11*60+45,   11*60+15,  10*60+45,  10*60+15,  9*60+45  ]],
       ['16:00', '16:29', [ 11*60+30,   11*60,     10*60+30,  10*60,     9*60+30  ]],
       ['16:30', '16:59', [ 11*60+15,   10*60+45,  10*60+15,  9*60+45,   9*60+15  ]],
-      ['17:00', '23:59', [ 11*60,      10*60+30,  10*60,     9*60+30,   9*60     ]],
+      // ── 17:00–04:59 combined night/early-morning row (OM-A: 1700–0459) ──
+      // Two lookup rows needed to span midnight; displayLabel unifies them in the table view.
+      ['17:00', '23:59', [ 11*60,      10*60+30,  10*60,     9*60+30,   9*60     ], '17:00–04:59'],
+      ['00:00', '04:59', [ 11*60,      10*60+30,  10*60,     9*60+30,   9*60     ], null],
     ],
 
     // ─────────────────────────────────────────────────────────────
@@ -1107,8 +1108,10 @@ function buildModalBaseTable() {
   const tbody = document.getElementById('modalBaseBody');
   tbody.innerHTML = '';
   FDP_DATA.EUROWINGS.table.forEach(function(row) {
+    if (row[3] === null) return;
     const tr = document.createElement('tr');
-    let cells = '<td>' + row[0] + '–' + row[1] + '</td>';
+    const label = row[3] || (row[0] + '–' + row[1]);
+    let cells = '<td>' + label + '</td>';
     for (let c = 0; c < row[2].length; c++) {
       cells += '<td>' + formatDuration(row[2][c]) + '</td>';
     }
@@ -1384,8 +1387,10 @@ function renderFDPTable() {
   const tbody = document.getElementById('fdpTableBody');
   tbody.innerHTML = '';
   data.table.forEach(function(row) {
+    if (row[3] === null) return; // hidden row (midnight-spanning duplicate — shown via displayLabel on sibling)
     const tr = document.createElement('tr');
-    let cells = '<td class="pr-3 py-1 val-dim">' + row[0] + '–' + row[1] + '</td>';
+    const label = row[3] || (row[0] + '–' + row[1]);
+    let cells = '<td class="pr-3 py-1 val-dim">' + label + '</td>';
     row[2].forEach(function(v) { cells += '<td class="pr-2 py-1">' + formatDuration(v) + '</td>'; });
     tr.innerHTML = cells;
     tbody.appendChild(tr);
@@ -1464,7 +1469,7 @@ function renderRestCard(maxFDP, fdpEndMins, airline, reportMins, opExtWasActive)
     if (opExtWasActive) {
       minRestMins = baseRest + 240;
       regulation  = 'EW OM-A · Home base + Op Ext · Rest ≥ max(duty, 12:00 h) + 4:00 h';
-      noteExtra   = 'Op Ext pre-planned: post-flight rest increased by 4h per OM-A 7.1.2.2.4(1)(b).';
+      noteExtra   = 'Op Ext pre-planned: post-flight rest +4h per OM-A 7.1.2.2.4(1)(b). Alt. option (a): both pre- and post-flight rest +2h each.';
     } else {
       minRestMins = baseRest;
       regulation  = 'EW OM-A · Home base · Rest ≥ max(duty, 12:00 h)';
@@ -1477,7 +1482,7 @@ function renderRestCard(maxFDP, fdpEndMins, airline, reportMins, opExtWasActive)
     if (opExtWasActive) {
       minRestMins = baseRest + 240;
       regulation  = 'EW OM-A · Away base + Op Ext · Rest ≥ max(duty, 10:00 h) + 4:00 h';
-      noteExtra   = 'Op Ext pre-planned: post-flight rest increased by 4h per OM-A 7.1.2.2.4(1)(b). Includes 8h sleep opportunity.';
+      noteExtra   = 'Op Ext pre-planned: post-flight rest +4h per OM-A 7.1.2.2.4(1)(b). Alt. option (a): both pre- and post-flight rest +2h each. Includes 8h sleep opportunity.';
     } else {
       minRestMins = baseRest;
       regulation  = 'EW OM-A · Away base · Rest ≥ max(duty, 10:00 h)';
@@ -1600,20 +1605,16 @@ function calculate() {
   // Returns minutes of overlap between the extended FDP window and the WOCL.
   // Uses LT times; fdpEnd can exceed 1440 for overnight duties.
   function woclEncroachmentMins(startLT, fdpEndLT) {
+    // WOCL = 02:00–05:59 LT. Compute total minutes of overlap between [startLT, fdpEndLT]
+    // and any WOCL window. fdpEndLT may exceed 1440 for overnight duties.
+    // Strategy: check overlap with WOCL on day 0 (WS..WE) and day 1 (WS+1440..WE+1440).
     const WS = 2 * 60, WE = 5 * 60 + 59;
-    function overlapWith(ws, we) {
-      var s = Math.max(startLT % 1440, ws);
-      var e = Math.min(fdpEndLT > 1440 ? fdpEndLT - 1440 : fdpEndLT, we);
-      // Also check day+1 window if FDP crosses midnight
-      var overlap = Math.max(0, e - s);
-      if (fdpEndLT > 1440) {
-        var s2 = Math.max(startLT % 1440, ws + 1440);
-        var e2 = Math.min(fdpEndLT, we + 1440);
-        overlap = Math.max(overlap, e2 - s2);
-      }
-      return overlap;
+    function overlapMins(ws, we) {
+      var s = Math.max(startLT, ws);
+      var e = Math.min(fdpEndLT, we);
+      return Math.max(0, e - s);
     }
-    return overlapWith(WS, WE);
+    return overlapMins(WS, WE) + overlapMins(WS + 1440, WE + 1440);
   }
 
   if (airline === 'EUROWINGS') {
@@ -1690,6 +1691,15 @@ function calculate() {
   const fdpEndMinsLT = reportMinsLT + maxFDP;
   const nightDuty = isNightDuty(reportMinsLT, fdpEndMinsLT);
 
+  // ── Disruptive schedule (OM-A §7.1.1.2 def.7) ──────────────────
+  // Early start: duty starts 05:00–05:59 LT
+  // Late finish: duty ends 23:00–01:59 LT (i.e. 23:00–25:59 in unwrapped minutes)
+  const reportLTWrapped = ((reportMinsLT % 1440) + 1440) % 1440;
+  const fdpEndLTWrapped = ((fdpEndMinsLT % 1440) + 1440) % 1440;
+  const isEarlyStart = reportLTWrapped >= 5 * 60 && reportLTWrapped < 6 * 60;
+  // Late finish: ends in 23:00–23:59 or 00:00–01:59
+  const isLateFinish = fdpEndLTWrapped >= 23 * 60 || fdpEndLTWrapped < 2 * 60;
+
   // ── Sector block times ──────────────────────────────────────────
   const sectorTimes = [];
   for (let i = 0; i < numSectors; i++) {
@@ -1711,6 +1721,22 @@ function calculate() {
           'This FDP encroaches the 02:00–04:59 LT night window.<br>' +
           'Reduced alertness expected — apply extra diligence.' +
         '</div>' +
+      '</div>';
+  }
+
+  // Disruptive schedule banners (OM-A §7.1.1.2 def.7)
+  if (isEarlyStart) {
+    html +=
+      '<div class="info-banner" style="margin-bottom:10px">' +
+        '⏰ EARLY START — duty begins ' + minsToHHMM(reportLTWrapped) + ' LT (05:00–05:59). ' +
+        'Disruptive schedule per OM-A §7.1.1.2 def.7(a). Transition from late finish requires a local night in rest.' +
+      '</div>';
+  }
+  if (isLateFinish && !nightDuty) {
+    html +=
+      '<div class="info-banner" style="margin-bottom:10px">' +
+        '🌆 LATE FINISH — FDP ends ' + minsToHHMM(fdpEndLTWrapped) + ' LT (23:00–01:59). ' +
+        'Disruptive schedule per OM-A §7.1.1.2 def.7(b). Transition to early start requires a local night in rest.' +
       '</div>';
   }
 
@@ -1753,10 +1779,17 @@ function calculate() {
   html += '<div class="result-row"><span class="label">Sectors</span><span class="val-amber">' + numSectors + '</span></div>';
 
   if (extTotal > 0) {
-    const extParts = [];
-    if (opExtActive) extParts.push('Op Ext +' + formatDuration(opExtMins));
-    if (cdExtActive) extParts.push('CMD Disc. +' + formatDuration(cdExtMins));
-    const extLabel = extParts.join(' + ');
+    let extLabel;
+    if (opExtActive && cdExtActive) {
+      // Both active: max(OpExt, base+2h) — not additive. Show which is limiting.
+      const opExtWins = (ewExtendedFDP !== null && ewExtendedFDP >= baseFDP + 120);
+      extLabel = 'Op Ext ' + formatDuration(ewExtendedFDP) + ' / CD base+2:00 → max = ' + formatDuration(maxFDP) +
+        ' <span style="color:var(--text-dim);font-size:0.78em">(' + (opExtWins ? 'Op Ext limits' : 'CD limits') + ')</span>';
+    } else if (opExtActive) {
+      extLabel = 'Op Ext +' + formatDuration(opExtMins);
+    } else {
+      extLabel = 'CMD Disc. +' + formatDuration(cdExtMins);
+    }
     html += '<div class="result-row"><span class="label">Extensions</span><span class="val-green">' + extLabel + '</span></div>';
     html += '<div class="result-row"><span class="label">Max FDP (with ext.)</span><span class="val-green" style="font-size:1.2rem">' + formatDuration(maxFDP) + '</span></div>';
   } else {
