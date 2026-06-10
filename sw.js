@@ -1,4 +1,4 @@
-const CACHE = 'fdp-v10';
+const CACHE = 'fdp-v13';
 self.addEventListener('install', function(e) { self.skipWaiting(); });
 self.addEventListener('activate', function(e) {
   e.waitUntil(caches.keys().then(function(keys) {

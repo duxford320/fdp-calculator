@@ -528,7 +528,7 @@
         <table class="modal-table">
           <thead>
             <tr>
-              <th>Report Time (UTC)</th>
+              <th>Report Time (LT)</th>
               <th>1–2 sec</th>
               <th>3 sec</th>
               <th>4 sec</th>
@@ -547,7 +547,7 @@
         <table class="modal-table">
           <thead>
             <tr>
-              <th>Report (UTC)</th>
+              <th>Report (LT)</th>
               <th>1–2 sec</th>
               <th>3 sec</th>
               <th>4 sec</th>
@@ -645,9 +645,22 @@
           class="w-full" oninput="formatTimeInput(this); calculate()" />
       </div>
       <div>
+        <div class="label mb-1 tooltip" data-tip="Your local timezone offset from UTC (e.g. +1 for CET, +2 for CEST). Used to look up the correct FDP table row.">LT Offset (UTC+)</div>
+        <input type="number" id="utcOffset" min="-12" max="14" value="2"
+          class="w-full" oninput="calculate()" />
+      </div>
+    </div>
+    <div class="grid grid-cols-2 gap-4 mb-4">
+      <div>
         <div class="label mb-1">Number of Sectors</div>
         <input type="number" id="numSectors" min="1" max="6" value="4"
           class="w-full" oninput="onSectorCountChange()" />
+      </div>
+      <div style="display:flex;align-items:flex-end;padding-bottom:2px">
+        <div>
+          <div class="label mb-1">Report Time (LT)</div>
+          <div id="reportLT" style="font-size:1.1rem;color:var(--text-dim);font-family:'Share Tech Mono',monospace">--:-- LT</div>
+        </div>
       </div>
     </div>
     <div class="grid grid-cols-2 gap-4 mb-4">
@@ -780,7 +793,7 @@
   </div>
 
   <div class="text-xs val-dim text-center mb-4">
-    FDP Calculator v4.3 · For reference only · Always verify with official documentation<br/>
+    FDP Calculator v4.6 · For reference only · Always verify with official documentation<br/>
     Works offline after first load · PWA enabled
   </div>
 </div>
@@ -932,8 +945,13 @@ function dayLabel(mins) {
 function formatTimeInput(input) {
   let v = input.value.replace(/[^0-9:]/g, '');
   if (!v.includes(':')) {
-    if (v.length === 3) v = v.slice(0,1) + ':' + v.slice(1);       // 815 → 8:15
-    else if (v.length === 4) v = v.slice(0,2) + ':' + v.slice(2);  // 0815 → 08:15
+    if (v.length === 3) {
+      // Leading zero means 2-digit hour: 080 → 08:0; otherwise 1-digit: 815 → 8:15
+      if (v[0] === '0') v = v.slice(0,2) + ':' + v.slice(2);
+      else               v = v.slice(0,1) + ':' + v.slice(1);
+    } else if (v.length === 4) {
+      v = v.slice(0,2) + ':' + v.slice(2);    // 0815 → 08:15
+    }
   }
   input.value = v;
 }
@@ -1331,18 +1349,14 @@ function getEWExtendedFDP(reportMins, numSectors) {
   return null; // not found → prohibited
 }
 
-// Night duty: FDP overlaps 02:00–05:59 UTC
-// fdpEndMins = reportMins + maxFDP, so it can exceed 1440 for overnight duties.
-// r is report time wrapped to day-0 (0–1439).
-// Check 1: duty window on day-0 overlaps night window on day-0 (covers same-day cases).
-// Check 2: duty window overlaps night window on day+1 (covers duties crossing midnight
-//          where fdpEndMins > 1440, e.g. report 23:00 + 13h FDP ends 12:00 next day).
-function isNightDuty(reportMins, fdpEndMins) {
-  const NS = 2 * 60, NE = 5 * 60 + 59;
+// Night duty (OM-A §7.1.1.2 def.8): FDP encroaches 02:00–04:59 LT (acclimatised time zone).
+// reportMinsLT / fdpEndMinsLT are already in LT; fdpEndMinsLT can exceed 1440 for overnight duties.
+function isNightDuty(reportMinsLT, fdpEndMinsLT) {
+  const NS = 2 * 60, NE = 4 * 60 + 59;
   function overlaps(ds, de, ws, we) { return ds <= we && de >= ws; }
-  const r = reportMins % 1440;
-  if (overlaps(r, fdpEndMins, NS, NE))           return true;
-  if (overlaps(r, fdpEndMins, NS+1440, NE+1440)) return true;
+  const r = reportMinsLT % 1440;
+  if (overlaps(r, fdpEndMinsLT, NS, NE))           return true;
+  if (overlaps(r, fdpEndMinsLT, NS+1440, NE+1440)) return true;
   return false;
 }
 
@@ -1359,7 +1373,7 @@ function renderFDPTable() {
 
   // Header
   let headHtml = '<tr style="color:var(--text-dim);text-align:left">';
-  headHtml += '<th class="pb-2 pr-3" style="font-weight:normal">Report (UTC)</th>';
+  headHtml += '<th class="pb-2 pr-3" style="font-weight:normal">Report (LT)</th>';
   data.cols.forEach(function(c) {
     headHtml += '<th class="pb-2 pr-2" style="font-weight:normal">' + c + '</th>';
   });
@@ -1440,27 +1454,37 @@ function renderRestCard(maxFDP, fdpEndMins, airline, reportMins, opExtWasActive)
   var noteExtra = '';
 
   if (!isEW) {
-    // EASA ORO.FTL.235: rest ≥ max(preceding duty period, 10h)
+    // EASA ORO.FTL.235: rest >= max(preceding duty period, 10h)
     minRestMins = Math.max(dutyDuration, 600);
-    regulation  = 'EASA ORO.FTL.235 \u00b7 Rest \u2265 max(duty, 10:00\u202fh)';
-  } else if (opExtWasActive) {
-    // EW OM-A: if duty was pre-planned as extended (Op Ext), min rest = 16h fixed
-    minRestMins = 960;
-    regulation  = 'EW OM-A \u00b7 Extended duty (Op Ext pre-planned) \u00b7 Rest = 16:00\u202fh';
-    noteExtra   = 'Fixed 16h rest applies when Operator Extension was pre-planned before report.';
+    regulation  = 'EASA ORO.FTL.235 · Rest ≥ max(duty, 10:00 h)';
   } else if (restBase === 'home') {
-    // EW OM-A: home base rest ≥ max(preceding duty, 12h)
-    minRestMins = Math.max(dutyDuration, 720);
-    regulation  = 'EW OM-A \u00b7 Home base \u00b7 Rest \u2265 max(duty, 12:00\u202fh)';
-    noteExtra   = 'Derogation to away-base rest (10h) permitted if suitable accommodation provided.';
+    // EW OM-A 7.1.2.8.1: home base rest >= max(duty, 12h)
+    // Op Ext active (7.1.2.2.4(1)(b)): post-flight rest +4h
+    var baseRest = Math.max(dutyDuration, 720);
+    if (opExtWasActive) {
+      minRestMins = baseRest + 240;
+      regulation  = 'EW OM-A · Home base + Op Ext · Rest ≥ max(duty, 12:00 h) + 4:00 h';
+      noteExtra   = 'Op Ext pre-planned: post-flight rest increased by 4h per OM-A 7.1.2.2.4(1)(b).';
+    } else {
+      minRestMins = baseRest;
+      regulation  = 'EW OM-A · Home base · Rest ≥ max(duty, 12:00 h)';
+      noteExtra   = 'Derogation to away-base rest (10h) permitted if suitable accommodation provided.';
+    }
   } else {
-    // EW OM-A: away base rest ≥ max(preceding duty, 10h)
-    minRestMins = Math.max(dutyDuration, 600);
-    regulation  = 'EW OM-A \u00b7 Away base \u00b7 Rest \u2265 max(duty, 10:00\u202fh)';
-    noteExtra   = 'Includes 8h sleep opportunity. Travel time > 30\u202fmin extends rest \u2014 verify with OM-A.';
+    // EW OM-A 7.1.2.8.2: away base rest >= max(duty, 10h)
+    // Op Ext active (7.1.2.2.4(1)(b)): post-flight rest +4h
+    var baseRest = Math.max(dutyDuration, 600);
+    if (opExtWasActive) {
+      minRestMins = baseRest + 240;
+      regulation  = 'EW OM-A · Away base + Op Ext · Rest ≥ max(duty, 10:00 h) + 4:00 h';
+      noteExtra   = 'Op Ext pre-planned: post-flight rest increased by 4h per OM-A 7.1.2.2.4(1)(b). Includes 8h sleep opportunity.';
+    } else {
+      minRestMins = baseRest;
+      regulation  = 'EW OM-A · Away base · Rest ≥ max(duty, 10:00 h)';
+      noteExtra   = 'Includes 8h sleep opportunity. Travel time > 30 min extends rest — verify with OM-A.';
+    }
   }
-
-  var earliestNextReport = dutyEndMins + minRestMins;
+var earliestNextReport = dutyEndMins + minRestMins;
 
   var rHtml = '';
   rHtml += '<div class="result-row"><span class="label">FDP Duration</span>' +
@@ -1491,6 +1515,7 @@ function calculate() {
   const postFlight = parseInt(document.getElementById('postFlight').value) || 30;
   const turnaround = parseInt(document.getElementById('turnaround').value) || 35;
   const airline    = getAirline();
+  const utcOffset  = parseInt(document.getElementById('utcOffset').value) || 0;
 
   const opExtCb    = document.getElementById('opExt');
   const cdExtCb    = document.getElementById('cdExt');
@@ -1501,20 +1526,26 @@ function calculate() {
   const takeoffCard    = document.getElementById('takeoffCard');
   const takeoffContent = document.getElementById('takeoffContent');
 
-  // ── Validate report time ────────────────────────────────────────
-  const reportMins = parseHHMM(reportStr);
+  // ── Validate report time (entered as UTC) ───────────────────────
+  const reportMinsUTC = parseHHMM(reportStr);
+  // Table rows are in LT — add offset to convert UTC → LT for lookup
+  const reportMinsLT  = reportMinsUTC !== null ? reportMinsUTC + utcOffset * 60 : null;
+
+  // ── Update Report LT display ────────────────────────────────────
+  const reportLTEl = document.getElementById('reportLT');
+  if (reportLTEl) reportLTEl.textContent = reportMinsLT !== null ? minsToHHMM(reportMinsLT) + ' LT' : '--:-- LT';
 
   // ── S1 Departure display: actual if entered, else estimated ─────
   const preDep      = parseInt(document.getElementById('preDep').value) || 60;
   const stdS1DepEl  = document.getElementById('stdS1Dep');
   const s1DepLabel  = document.getElementById('s1DepLabel');
   const actualS1TO  = parseHHMM((document.getElementById('actualTO0') || {}).value || '');
-  if (reportMins !== null) {
+  if (reportMinsUTC !== null) {
     if (actualS1TO !== null) {
       stdS1DepEl.textContent = minsToHHMM(actualS1TO) + ' UTC';
       if (s1DepLabel) s1DepLabel.textContent = 'Actual S1 T/O';
     } else {
-      stdS1DepEl.textContent = minsToHHMM(reportMins + preDep) + ' UTC';
+      stdS1DepEl.textContent = minsToHHMM(reportMinsUTC + preDep) + ' UTC';
       if (s1DepLabel) s1DepLabel.textContent = 'Est. S1 Departure';
     }
   } else {
@@ -1522,7 +1553,7 @@ function calculate() {
     if (s1DepLabel) s1DepLabel.textContent = 'Est. S1 Departure';
   }
 
-  if (reportMins === null) {
+  if (reportMinsUTC === null) {
     resultsContent.innerHTML = '<div class="val-dim text-sm">Enter a valid report time (HH:MM UTC).</div>';
     takeoffCard.style.display = 'none';
     prohibitEl.style.display  = 'none';
@@ -1534,8 +1565,8 @@ function calculate() {
     return;
   }
 
-  // ── FDP base lookup ─────────────────────────────────────────────
-  const baseFDP = getFDPLimit(reportMins, numSectors);
+  // ── FDP base lookup (uses LT for table row match) ───────────────
+  const baseFDP = getFDPLimit(reportMinsLT, numSectors);
   if (baseFDP === null) {
     resultsContent.innerHTML = '<div class="val-red text-sm">Could not find FDP limit for this report time.</div>';
     takeoffCard.style.display = 'none';
@@ -1548,10 +1579,8 @@ function calculate() {
     return;
   }
 
-  // ── EW Operator Extension: direct table lookup ──────────────────
-  // For EW: extension gives a specific total FDP (not always base+1h).
-  // For EASA: flat +1h if checkbox ticked.
-  let ewExtendedFDP = null; // total FDP if extension applied (EW only)
+  // ── EW Operator Extension: direct table lookup (LT) ────────────
+  let ewExtendedFDP = null;
   let ewExtProhibited = false;
 
   function prohibitOpExt(msg) {
@@ -1567,16 +1596,47 @@ function calculate() {
     prohibitEl.style.display = 'none';
   }
 
+  // ── WOCL encroachment helper (OM-A §7.1.2.2.4(3), WOCL = 02:00–05:59 LT) ──────────
+  // Returns minutes of overlap between the extended FDP window and the WOCL.
+  // Uses LT times; fdpEnd can exceed 1440 for overnight duties.
+  function woclEncroachmentMins(startLT, fdpEndLT) {
+    const WS = 2 * 60, WE = 5 * 60 + 59;
+    function overlapWith(ws, we) {
+      var s = Math.max(startLT % 1440, ws);
+      var e = Math.min(fdpEndLT > 1440 ? fdpEndLT - 1440 : fdpEndLT, we);
+      // Also check day+1 window if FDP crosses midnight
+      var overlap = Math.max(0, e - s);
+      if (fdpEndLT > 1440) {
+        var s2 = Math.max(startLT % 1440, ws + 1440);
+        var e2 = Math.min(fdpEndLT, we + 1440);
+        overlap = Math.max(overlap, e2 - s2);
+      }
+      return overlap;
+    }
+    return overlapWith(WS, WE);
+  }
+
   if (airline === 'EUROWINGS') {
     if (numSectors === 6) {
       prohibitOpExt('⛔  Operator Extension Prohibited for 6 Sectors (EW OM-A)');
     } else {
-      ewExtendedFDP = getEWExtendedFDP(reportMins, numSectors);
+      ewExtendedFDP = getEWExtendedFDP(reportMinsLT, numSectors);
       if (ewExtendedFDP === null) {
         prohibitOpExt('⛔  Operator Extension Prohibited — ' +
-          minsToHHMM(reportMins) + ' UTC / ' + numSectors + ' sector(s) not in EW extension table');
+          minsToHHMM(reportMinsUTC) + ' UTC (' + minsToHHMM(reportMinsLT) + ' LT) / ' + numSectors + ' sector(s) not in EW extension table');
       } else {
-        allowOpExt();
+        // Check WOCL-based sector limit (OM-A §7.1.2.2.4(3))
+        var extFdpEndLT = reportMinsLT + ewExtendedFDP;
+        var woclMins    = woclEncroachmentMins(reportMinsLT, extFdpEndLT);
+        var maxSectorsForExt = woclMins === 0 ? 5 : woclMins <= 120 ? 4 : 2;
+        if (numSectors > maxSectorsForExt) {
+          var woclMsg = woclMins === 0 ? 'no WOCL encroachment (max 5 sec)'
+            : woclMins <= 120 ? 'WOCL encroached ≤ 2h (max 4 sec)'
+            : 'WOCL encroached > 2h (max 2 sec)';
+          prohibitOpExt('⛔  Operator Extension Prohibited — ' + numSectors + ' sectors planned but ' + woclMsg + ' per OM-A §7.1.2.2.4(3)');
+        } else {
+          allowOpExt();
+        }
       }
     }
   } else {
@@ -1589,42 +1649,30 @@ function calculate() {
 
   let maxFDP;
   if (airline === 'EUROWINGS') {
-    // EW: Op Ext uses the OM-A table ceiling (ewExtendedFDP).
-    // CD (+2h) per ORO.FTL.205(e) is an independent unforeseen-circumstances mechanism
-    // that applies to the BASE FDP only — it does NOT stack on top of Op Ext.
-    // When both are active, take the higher of the two:
-    //   - Op Ext alone:  ewExtendedFDP
-    //   - CD alone:      baseFDP + 120
-    //   - Both active:   max(ewExtendedFDP, baseFDP + 120)
     const opExtFDP = opExtActive && ewExtendedFDP !== null ? ewExtendedFDP : baseFDP;
     const cdFDP    = cdExtActive ? baseFDP + 120 : baseFDP;
     maxFDP = Math.max(opExtFDP, cdFDP);
   } else {
-    // EASA: flat +1h op ext, +2h CD, no hard ceiling
     maxFDP = baseFDP + (opExtActive ? 60 : 0) + (cdExtActive ? 120 : 0);
   }
 
-  // Extension increment shown in results (for display)
   const opExtMins = opExtActive && airline === 'EUROWINGS' && ewExtendedFDP !== null
-    ? ewExtendedFDP - baseFDP   // actual increment from table
-    : (opExtActive ? 60 : 0);  // EASA flat
+    ? ewExtendedFDP - baseFDP
+    : (opExtActive ? 60 : 0);
 
-  const cdExtMins = cdExtActive
-    ? (airline === 'EUROWINGS'
-        ? Math.max(0, (baseFDP + 120) - (opExtActive && ewExtendedFDP !== null ? ewExtendedFDP : baseFDP))
-        : 120)
-    : 0;
+  // CD is always +2h from base FDP per 7.2.1(a) — no cap, independent of Op Ext
+  const cdExtMins = cdExtActive ? 120 : 0;
 
   const extTotal = opExtMins + cdExtMins;
-  const fdpEndMins = reportMins + maxFDP;  // FDP ends at on-blocks; post-flight duty is after FDP
+  // FDP end is UTC: report UTC + duration
+  const fdpEndMins = reportMinsUTC + maxFDP;
 
-  // ── Save FDP end for live countdown ────────────────────────────
+  // ── Save FDP end for live countdown (UTC) ───────────────────────
   fdpEndMinsSaved = fdpEndMins;
   updateCountdown();
 
   // ── Minimum Rest card ───────────────────────────────────────────
-  // fdpEndMins anchor: actual last LDG if entered, else FDP table limit (on-blocks = FDP end)
-  // Post-flight and duty end are computed inside renderRestCard.
+  // actual LDG fields are UTC; adjust for midnight crossing vs reportMinsUTC
   var actualLastLdg = null;
   for (var si = numSectors - 1; si >= 0; si--) {
     var ldgEl2 = document.getElementById('actualLDG' + si);
@@ -1633,14 +1681,14 @@ function calculate() {
       if (parsed !== null) { actualLastLdg = parsed; break; }
     }
   }
-  // Adjust for midnight crossing: if actual LDG is before report time, it's next day
-  if (actualLastLdg !== null && actualLastLdg < reportMins) actualLastLdg += 1440;
+  if (actualLastLdg !== null && actualLastLdg < reportMinsUTC) actualLastLdg += 1440;
   var fdpEndForRest = (actualLastLdg !== null) ? actualLastLdg : fdpEndMins;
   document.getElementById('restCard').style.display = 'block';
-  renderRestCard(maxFDP, fdpEndForRest, airline, reportMins, opExtActive);
+  renderRestCard(maxFDP, fdpEndForRest, airline, reportMinsUTC, opExtActive);
 
-  // ── Night Duty ──────────────────────────────────────────────────
-  const nightDuty = isNightDuty(reportMins, fdpEndMins);
+  // ── Night Duty (OM-A §7.1.1.2 def.8: 02:00–04:59 LT) ──────────
+  const fdpEndMinsLT = reportMinsLT + maxFDP;
+  const nightDuty = isNightDuty(reportMinsLT, fdpEndMinsLT);
 
   // ── Sector block times ──────────────────────────────────────────
   const sectorTimes = [];
@@ -1660,7 +1708,7 @@ function calculate() {
       'padding:12px 14px;margin-bottom:12px;text-align:center">' +
         '<div style="color:var(--red);font-size:1.05rem;letter-spacing:0.08em;font-weight:bold">⚠ NIGHT DUTY</div>' +
         '<div style="color:#fca5a5;font-size:0.78rem;margin-top:4px">' +
-          'This FDP encroaches the 02:00–05:59 UTC night window.<br>' +
+          'This FDP encroaches the 02:00–04:59 LT night window.<br>' +
           'Reduced alertness expected — apply extra diligence.' +
         '</div>' +
       '</div>';
@@ -1677,7 +1725,7 @@ function calculate() {
   var actualFdpNote = '';
   // Try last sector actual LDG first (already computed above as actualLastLdg)
   if (actualLastLdg !== null) {
-    actualFdpMins = actualLastLdg - reportMins;
+    actualFdpMins = actualLastLdg - reportMinsUTC;
     actualFdpNote = 'report → actual last LDG';
   } else {
     // Try projecting: find last sector where actualTO + block are both known
@@ -1686,20 +1734,20 @@ function calculate() {
       var fBlk = parseHHMM((document.getElementById('sector' + fi) || {}).value || '');
       if (fTO !== null && fBlk !== null) {
         var projLdg = fTO + fBlk;
-        if (projLdg < reportMins) projLdg += 1440;
-        actualFdpMins = projLdg - reportMins;
+        if (projLdg < reportMinsUTC) projLdg += 1440;
+        actualFdpMins = projLdg - reportMinsUTC;
         actualFdpNote = fi === numSectors - 1 ? 'report → projected last LDG' : 'report → projected S' + (fi+1) + ' LDG (partial)';
         break;
       }
     }
   }
 
-  html += '<div class="result-row"><span class="label">Report Time</span><span class="val-amber text-lg">' + minsToHHMM(reportMins) + ' UTC</span></div>';
+  html += '<div class="result-row"><span class="label">Report Time</span><span class="val-amber text-lg">' + minsToHHMM(reportMinsUTC) + ' UTC <span style="color:var(--text-dim);font-size:0.8em">(' + minsToHHMM(reportMinsLT) + ' LT)</span></span></div>';
   // S1 departure line: show actual if entered, else estimated
   if (actualS1TO !== null) {
-    html += '<div class="result-row"><span class="label">Actual S1 T/O</span><span class="val-green">' + minsToHHMM(actualS1TO) + ' UTC <span style="color:var(--text-dim);font-size:0.8em">(pre-dep: ' + formatDuration(actualS1TO - reportMins) + ')</span></span></div>';
+    html += '<div class="result-row"><span class="label">Actual S1 T/O</span><span class="val-green">' + minsToHHMM(actualS1TO) + ' UTC <span style="color:var(--text-dim);font-size:0.8em">(pre-dep: ' + formatDuration(actualS1TO - reportMinsUTC) + ')</span></span></div>';
   } else {
-    html += '<div class="result-row"><span class="label">Est. S1 Departure</span><span class="val-green">' + minsToHHMM(reportMins + preDep) + ' UTC <span style="color:var(--text-dim);font-size:0.8em">(report + ' + preDep + ' min)</span></span></div>';
+    html += '<div class="result-row"><span class="label">Est. S1 Departure</span><span class="val-green">' + minsToHHMM(reportMinsUTC + preDep) + ' UTC <span style="color:var(--text-dim);font-size:0.8em">(report + ' + preDep + ' min)</span></span></div>';
   }
   html += '<div class="result-row"><span class="label">Ruleset</span><span class="val-dim">' + FDP_DATA[airline].label + '</span></div>';
   html += '<div class="result-row"><span class="label">Sectors</span><span class="val-amber">' + numSectors + '</span></div>';
@@ -1707,8 +1755,7 @@ function calculate() {
   if (extTotal > 0) {
     const extParts = [];
     if (opExtActive) extParts.push('Op Ext +' + formatDuration(opExtMins));
-    if (cdExtActive && cdExtMins > 0)  extParts.push('CMD Disc. +' + formatDuration(cdExtMins));
-    if (cdExtActive && cdExtMins === 0) extParts.push('CMD Disc. — no room, table cap reached');
+    if (cdExtActive) extParts.push('CMD Disc. +' + formatDuration(cdExtMins));
     const extLabel = extParts.join(' + ');
     html += '<div class="result-row"><span class="label">Extensions</span><span class="val-green">' + extLabel + '</span></div>';
     html += '<div class="result-row"><span class="label">Max FDP (with ext.)</span><span class="val-green" style="font-size:1.2rem">' + formatDuration(maxFDP) + '</span></div>';
@@ -2147,6 +2194,7 @@ function saveState() {
     var airline = document.querySelector('input[name="airline"]:checked');
     var state = {
       reportTime:  document.getElementById('reportTime').value,
+      utcOffset:   document.getElementById('utcOffset').value,
       numSectors:  document.getElementById('numSectors').value,
       turnaround:  document.getElementById('turnaround').value,
       postFlight:  document.getElementById('postFlight').value,
@@ -2164,6 +2212,7 @@ function saveState() {
 function resetToDefaults() {
   try { localStorage.removeItem(STATE_KEY); } catch(e) {}
   document.getElementById('reportTime').value  = '';
+  document.getElementById('utcOffset').value   = '2';
   document.getElementById('numSectors').value  = '4';
   document.getElementById('turnaround').value  = '35';
   document.getElementById('postFlight').value  = '30';
@@ -2184,11 +2233,12 @@ function loadState() {
     if (!raw) return false;
     var s = JSON.parse(raw);
 
-    if (s.reportTime)  document.getElementById('reportTime').value  = s.reportTime;
-    if (s.numSectors)  document.getElementById('numSectors').value  = s.numSectors;
-    if (s.turnaround)  document.getElementById('turnaround').value  = s.turnaround;
-    if (s.postFlight)  document.getElementById('postFlight').value  = s.postFlight;
-    if (s.preDep)      document.getElementById('preDep').value      = s.preDep;
+    if (s.reportTime)             document.getElementById('reportTime').value  = s.reportTime;
+    if (s.utcOffset !== undefined) document.getElementById('utcOffset').value  = s.utcOffset;
+    if (s.numSectors)             document.getElementById('numSectors').value  = s.numSectors;
+    if (s.turnaround)             document.getElementById('turnaround').value  = s.turnaround;
+    if (s.postFlight)             document.getElementById('postFlight').value  = s.postFlight;
+    if (s.preDep)                 document.getElementById('preDep').value      = s.preDep;
     if (s.airline) {
       var rb = document.querySelector('input[name="airline"][value="' + s.airline + '"]');
       if (rb) { rb.checked = true; onAirlineChange(); }
